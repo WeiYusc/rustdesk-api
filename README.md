@@ -2,7 +2,7 @@
 
 [English Doc](README_EN.md)
 
-本项目使用 Go 实现了 RustDesk 的 API，并包含了 Web Admin 和 Web 客户端。
+本项目使用 Go 实现了 RustDesk 的 API，并包含了 Web Admin 和 Web 客户端，移动端适配优化。
 
 
 <div align=center>
