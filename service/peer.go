@@ -119,13 +119,14 @@ func (ps *PeerService) Create(u *model.Peer) error {
 
 // Delete 删除, 同时也应该删除token
 func (ps *PeerService) Delete(u *model.Peer) error {
-	uuid := u.Uuid
+	//uuid := u.Uuid
 	err := DB.Delete(u).Error
 	if err != nil {
 		return err
 	}
 	// 删除token
-	return AllService.UserService.FlushTokenByUuid(uuid)
+	//return AllService.UserService.FlushTokenByUuid(uuid)
+	return nil
 }
 
 // GetUuidListByIDs 根据ids获取uuid列表
@@ -146,13 +147,14 @@ func (ps *PeerService) GetUuidListByIDs(ids []uint) ([]string, error) {
 
 // BatchDelete 批量删除, 同时也应该删除token
 func (ps *PeerService) BatchDelete(ids []uint) error {
-	uuids, err := ps.GetUuidListByIDs(ids)
-	err = DB.Where("row_id in (?)", ids).Delete(&model.Peer{}).Error
+	//uuids, err := ps.GetUuidListByIDs(ids)
+	err := DB.Where("row_id in (?)", ids).Delete(&model.Peer{}).Error
 	if err != nil {
 		return err
 	}
 	// 删除token
-	return AllService.UserService.FlushTokenByUuids(uuids)
+	//return AllService.UserService.FlushTokenByUuids(uuids)
+	return nil
 }
 
 // Update 更新
