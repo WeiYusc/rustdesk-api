@@ -154,7 +154,7 @@ func (ct *AddressBook) BatchCreate(c *gin.Context) {
 		mu.Unlock()
 	}
 
-	if len(ts) == 1 {
+	if len(ts) == 1 && ts[0].CollectionId > 0 {
 		peer := service.AllService.PeerService.FindById(ts[0].Id)
 		if peer != nil && peer.RowId != 0 {
 			upp := &model.Peer{RowId: peer.RowId, Alias: ts[0].Alias}
