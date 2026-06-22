@@ -191,7 +191,14 @@ func (s *AddressBookService) QueryShareByWebClientId(id string) bool {
 // SharedPeer
 func (s *AddressBookService) SharedPeer(shareToken string) *model.ShareRecord {
 	m := &model.ShareRecord{}
-	DB.Where("share_token = ?", shareToken).First(m)
+	DB.Where("share_token = ?", shareToken).Last(m)
+	return m
+}
+
+// SharedPeerByPeerId 根据PeerId查询分享记录
+func (s *AddressBookService) SharedPeerByPeerId(peerId string) *model.ShareRecord {
+	m := &model.ShareRecord{}
+	DB.Where("peer_id = ?", peerId).Last(m)
 	return m
 }
 

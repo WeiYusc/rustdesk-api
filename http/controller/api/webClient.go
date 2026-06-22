@@ -103,21 +103,35 @@ func (i *WebClient) SharedPeer(c *gin.Context) {
 // @Failure 404 {object} response.Response
 // @Router /query-share-peer [get]
 func (i *WebClient) QuerySharePeer(c *gin.Context) {
-    peerId := c.Query("peer_id")
-    if peerId == "" {
-        response.Fail(c, 400, "peer_id is required")
-        return
-    }
+	peerId := c.Query("peer_id")
+	if peerId == "" {
+		response.Fail(c, 400, "peer_id is required")
+		return
+	}
 
-    exists := service.AllService.AddressBookService.QueryShareByWebClientId(peerId)
-    if !exists {
-        response.Fail(c, 404, "peer not found")
-        return
-    }
+	exists := service.AllService.AddressBookService.QueryShareByWebClientId(peerId)
+	if !exists {
+		response.Fail(c, 404, "peer not found")
+		return
+	}
 
-	//登录后失效
-	service.AllService.DeleteShareByWebClientId(peerId)
-    response.Success(c, gin.H{"peer_id": peerId})
+	// 检查分享记录的有效期
+	sr := service.AllService.AddressBookService.SharedPeerByPeerId(peerId)
+	if sr == nil || sr.Id == 0 {
+		response.Fail(c, 404, "peer not found")
+		return
+	}
+	if sr.Expire != 0 {
+		ca := time.Time(sr.CreatedAt)
+		if ca.Add(time.Second * time.Duration(sr.Expire)).Before(time.Now()) {
+			// 已过期，删除缓存并返回过期
+			service.AllService.DeleteShareByWebClientId(peerId)
+			response.Fail(c, 101, "share expired")
+			return
+		}
+	}
+
+	response.Success(c, gin.H{"peer_id": peerId})
 }
 
 // ServerConfigV2 服务配置
