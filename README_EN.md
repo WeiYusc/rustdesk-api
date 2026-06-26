@@ -3,6 +3,8 @@
 This project implements the RustDesk API using Go, and includes both a web UI and web client. RustDesk is a remote
 desktop software that provides self-hosted solutions.
 
+> Current fork compatibility note: local verification currently focuses on the linux/amd64 API service. This source snapshot does not include built `resources/admin` or `resources/web` static assets, so `/_admin/` and `/webclient/` return 404 until those frontend assets are supplied. See the [current fork operations boundary](./docs/current-fork-operations.md) and [compatibility matrix](./compatibility.md).
+
 <div align=center>
 <img src="https://img.shields.io/badge/golang-1.22-blue"/>
 <img src="https://img.shields.io/badge/gin-v1.9.0-lightBlue"/>
@@ -151,6 +153,7 @@ displaying data.Frontend code is available at [rustdesk-api-web](https://github.
 ### Configuration
 
 * [Config File](./conf/config.yaml)
+* [Current fork operations boundary](./docs/current-fork-operations.md): records the linux/amd64, SQLite, Docker/S6, static-resource, and API-side `MUST_LOGIN` boundaries verified in this stage.
 * Modify the configuration in `conf/config.yaml`. 
 * If `gorm.type` is set to `sqlite`, MySQL-related configurations are not required.
 * Language support: `en` and `zh-CN` are supported. The default is `zh-CN`.

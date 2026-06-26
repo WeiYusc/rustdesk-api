@@ -4,6 +4,8 @@
 
 本项目使用 Go 实现了 RustDesk 的 API，并包含了 Web Admin 和 Web 客户端。
 
+> 当前 fork 兼容性说明：本地验证范围以 linux/amd64 API 服务为主；当前源码快照未内置 `resources/admin` 或 `resources/web` 静态构建产物，`/_admin/` 和 `/webclient/` 在未补充前端资源时会返回 404。详见 [当前 fork 运维边界](./docs/current-fork-operations.md) 和 [兼容性矩阵](./compatibility.md)。
+
 
 <div align=center>
 <img src="https://img.shields.io/badge/golang-1.22-blue"/>
@@ -144,6 +146,7 @@
 ### 相关配置
 
 * [配置文件](./conf/config.yaml)
+* [当前 fork 运维边界](./docs/current-fork-operations.md)：记录本阶段已验证的 linux/amd64、SQLite、Docker/S6、静态资源和 `MUST_LOGIN` API 侧边界。
 * 参考`conf/config.yaml`配置文件，修改相关配置。
 * 如果`gorm.type`是`sqlite`，则不需要配置mysql相关配置。
 * 语言如果不设置默认为`zh-CN`
