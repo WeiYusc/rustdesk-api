@@ -162,7 +162,9 @@ const docTemplateapi = `{
                         }
                     }
                 }
-            },
+            }
+        },
+        "/ab/peer/{guid}": {
             "delete": {
                 "security": [
                     {
@@ -734,7 +736,7 @@ const docTemplateapi = `{
             }
         },
         "/currentUser": {
-            "get": {
+            "post": {
                 "security": [
                     {
                         "token": []
@@ -1102,7 +1104,7 @@ const docTemplateapi = `{
             }
         },
         "/server-config": {
-            "get": {
+            "post": {
                 "security": [
                     {
                         "token": []
@@ -1136,7 +1138,7 @@ const docTemplateapi = `{
             }
         },
         "/server-config-v2": {
-            "get": {
+            "post": {
                 "security": [
                     {
                         "token": []

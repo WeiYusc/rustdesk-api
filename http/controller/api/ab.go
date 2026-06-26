@@ -621,7 +621,7 @@ func (a *Ab) PeerAdd(c *gin.Context) {
 // @Param guid path string true "guid"
 // @Success 200 {string} string
 // @Failure 500 {object} response.ErrorResponse
-// @Router /ab/peer/add/{guid} [delete]
+// @Router /ab/peer/{guid} [delete]
 // @Security BearerAuth
 func (a *Ab) PeerDel(c *gin.Context) {
 	f := &[]string{}

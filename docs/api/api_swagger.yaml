@@ -266,32 +266,6 @@ paths:
       tags:
       - 地址
   /ab/peer/add/{guid}:
-    delete:
-      consumes:
-      - application/json
-      description: 删除地址
-      parameters:
-      - description: guid
-        in: path
-        name: guid
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            type: string
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: 删除地址
-      tags:
-      - 地址[Personal]
     post:
       consumes:
       - application/json
@@ -316,6 +290,33 @@ paths:
       security:
       - BearerAuth: []
       summary: 添加地址
+      tags:
+      - 地址[Personal]
+  /ab/peer/{guid}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除地址
+      parameters:
+      - description: guid
+        in: path
+        name: guid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 删除地址
       tags:
       - 地址[Personal]
   /ab/peer/update/{guid}:
@@ -651,7 +652,7 @@ paths:
       tags:
       - 审计
   /currentUser:
-    get:
+    post:
       consumes:
       - application/json
       description: 用户信息
@@ -888,7 +889,7 @@ paths:
       tags:
       - 群组
   /server-config:
-    get:
+    post:
       consumes:
       - application/json
       description: 服务配置,给webclient提供api-server
@@ -909,7 +910,7 @@ paths:
       tags:
       - WEBCLIENT
   /server-config-v2:
-    get:
+    post:
       consumes:
       - application/json
       description: 服务配置,给webclient提供api-server
