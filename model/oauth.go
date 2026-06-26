@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"errors"
 	"strconv"
 	"strings"
@@ -115,6 +116,46 @@ type OidcUser struct {
 	VerifiedEmail     bool   `json:"email_verified"`
 	PreferredUsername string `json:"preferred_username"`
 	Picture           string `json:"picture"`
+}
+
+func (ou *OidcUser) UnmarshalJSON(data []byte) error {
+	type oidcUser OidcUser
+	user := struct {
+		*oidcUser
+		VerifiedEmail oidcEmailVerified `json:"email_verified"`
+	}{
+		oidcUser: (*oidcUser)(ou),
+	}
+
+	if err := json.Unmarshal(data, &user); err != nil {
+		return err
+	}
+
+	ou.VerifiedEmail = bool(user.VerifiedEmail)
+	return nil
+}
+
+type oidcEmailVerified bool
+
+func (ev *oidcEmailVerified) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		*ev = false
+		return nil
+	}
+
+	var verified bool
+	if err := json.Unmarshal(data, &verified); err == nil {
+		*ev = oidcEmailVerified(verified)
+		return nil
+	}
+
+	var verifiedString string
+	if err := json.Unmarshal(data, &verifiedString); err != nil {
+		return err
+	}
+
+	*ev = oidcEmailVerified(strings.EqualFold(strings.TrimSpace(verifiedString), "true"))
+	return nil
 }
 
 func (ou *OidcUser) ToOauthUser() *OauthUser {

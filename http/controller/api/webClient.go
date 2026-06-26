@@ -20,7 +20,7 @@ type WebClient struct {
 // @Produce  json
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
-// @Router /server-config [get]
+// @Router /server-config [post]
 // @Security token
 func (i *WebClient) ServerConfig(c *gin.Context) {
 	u := service.AllService.UserService.CurUser(c)
@@ -53,9 +53,12 @@ func (i *WebClient) ServerConfig(c *gin.Context) {
 // @Router /shared-peer [post]
 func (i *WebClient) SharedPeer(c *gin.Context) {
 	j := &gin.H{}
-	c.ShouldBindJSON(j)
-	t := (*j)["share_token"].(string)
-	if t == "" {
+	if err := c.ShouldBindJSON(j); err != nil {
+		response.Fail(c, 101, "share_token is required")
+		return
+	}
+	t, ok := (*j)["share_token"].(string)
+	if !ok || t == "" {
 		response.Fail(c, 101, "share_token is required")
 		return
 	}
@@ -142,7 +145,7 @@ func (i *WebClient) QuerySharePeer(c *gin.Context) {
 // @Produce  json
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
-// @Router /server-config-v2 [get]
+// @Router /server-config-v2 [post]
 // @Security token
 func (i *WebClient) ServerConfigV2(c *gin.Context) {
 	response.Success(

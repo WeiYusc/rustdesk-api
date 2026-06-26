@@ -165,8 +165,10 @@ func (ps *PeerService) Update(u *model.Peer) error {
 	}
 
 	//单独更新需要强制写入零值的字段
-	if err := DB.Model(u).Where("row_id = ?", u.RowId).Update("user_id", 0).Error; err != nil {
-		return err
+	if u.UserId == 0 {
+		if err := DB.Model(u).Where("row_id = ?", u.RowId).Update("user_id", 0).Error; err != nil {
+			return err
+		}
 	}
 
 	return nil
