@@ -26,6 +26,8 @@ gorm:
   type: "sqlite"
   max-idle-conns: 10
   max-open-conns: 100
+  conn-max-idle-time: 1h
+  conn-max-lifetime: 7h30m
 mysql:
   username: ""
   password: ""

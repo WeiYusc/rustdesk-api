@@ -1,6 +1,7 @@
 package orm
 
 import (
+	"database/sql"
 	"fmt"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -8,10 +9,17 @@ import (
 	"time"
 )
 
+const (
+	defaultMysqlConnMaxIdleTime = time.Hour
+	defaultMysqlConnMaxLifetime = 7*time.Hour + 30*time.Minute
+)
+
 type MysqlConfig struct {
-	Dsn          string
-	MaxIdleConns int
-	MaxOpenConns int
+	Dsn             string
+	MaxIdleConns    int
+	MaxOpenConns    int
+	ConnMaxIdleTime time.Duration
+	ConnMaxLifetime time.Duration
 }
 
 func NewMysql(mysqlConf *MysqlConfig, logwriter logger.Writer) *gorm.DB {
@@ -42,11 +50,27 @@ func NewMysql(mysqlConf *MysqlConfig, logwriter logger.Writer) *gorm.DB {
 	if err2 != nil {
 		fmt.Println(err2)
 	}
+	applyMysqlConnPoolConfig(sqlDB, mysqlConf)
+
+	return db
+}
+
+func applyMysqlConnPoolConfig(sqlDB *sql.DB, mysqlConf *MysqlConfig) {
 	// SetMaxIdleConns 设置空闲连接池中连接的最大数量
 	sqlDB.SetMaxIdleConns(mysqlConf.MaxIdleConns)
 
 	// SetMaxOpenConns 设置打开数据库连接的最大数量。
 	sqlDB.SetMaxOpenConns(mysqlConf.MaxOpenConns)
 
-	return db
+	connMaxIdleTime := mysqlConf.ConnMaxIdleTime
+	if connMaxIdleTime <= 0 {
+		connMaxIdleTime = defaultMysqlConnMaxIdleTime
+	}
+	sqlDB.SetConnMaxIdleTime(connMaxIdleTime)
+
+	connMaxLifetime := mysqlConf.ConnMaxLifetime
+	if connMaxLifetime <= 0 {
+		connMaxLifetime = defaultMysqlConnMaxLifetime
+	}
+	sqlDB.SetConnMaxLifetime(connMaxLifetime)
 }

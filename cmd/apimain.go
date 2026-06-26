@@ -154,9 +154,11 @@ func InitGlobal() {
 		)
 
 		global.DB = orm.NewMysql(&orm.MysqlConfig{
-			Dsn:          dsn,
-			MaxIdleConns: global.Config.Gorm.MaxIdleConns,
-			MaxOpenConns: global.Config.Gorm.MaxOpenConns,
+			Dsn:             dsn,
+			MaxIdleConns:    global.Config.Gorm.MaxIdleConns,
+			MaxOpenConns:    global.Config.Gorm.MaxOpenConns,
+			ConnMaxIdleTime: global.Config.Gorm.ConnMaxIdleTime,
+			ConnMaxLifetime: global.Config.Gorm.ConnMaxLifetime,
 		}, global.Logger)
 	} else if global.Config.Gorm.Type == config.TypePostgresql {
 		dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s TimeZone=%s",
@@ -233,7 +235,11 @@ func DatabaseAutoUpdate() {
 
 			//新链接
 			dbWithoutDB := orm.NewMysql(&orm.MysqlConfig{
-				Dsn: dsnWithoutDB,
+				Dsn:             dsnWithoutDB,
+				MaxIdleConns:    global.Config.Gorm.MaxIdleConns,
+				MaxOpenConns:    global.Config.Gorm.MaxOpenConns,
+				ConnMaxIdleTime: global.Config.Gorm.ConnMaxIdleTime,
+				ConnMaxLifetime: global.Config.Gorm.ConnMaxLifetime,
 			}, global.Logger)
 			// 获取底层的 *sql.DB 对象，并确保在程序退出时关闭连接
 			sqlDBWithoutDB, err := dbWithoutDB.DB()

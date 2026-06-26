@@ -177,6 +177,8 @@
 | RUSTDESK_API_GORM_TYPE                                 | 数据库类型sqlite或者mysql，默认sqlite                                                    | sqlite                       |
 | RUSTDESK_API_GORM_MAX_IDLE_CONNS                       | 数据库最大空闲连接数                                                                     | 10                           |
 | RUSTDESK_API_GORM_MAX_OPEN_CONNS                       | 数据库最大打开连接数                                                                     | 100                          |
+| RUSTDESK_API_GORM_CONN_MAX_IDLE_TIME                   | MySQL 空闲连接最大保留时间，需小于服务端 `wait_timeout`，避免复用已失效连接                        | `1h`                         |
+| RUSTDESK_API_GORM_CONN_MAX_LIFETIME                    | MySQL 连接最大生命周期，默认低于 MySQL `wait_timeout`                                      | `7h30m`                      |
 | RUSTDESK_API_RUSTDESK_PERSONAL                         | 是否启用个人版API， 1:启用,0:不启用； 默认启用                                                   | 1                            |
 | -----MYSQL配置-----                                      | ----------                                                                     | ----------                   |
 | RUSTDESK_API_MYSQL_USERNAME                            | mysql用户名                                                                       | root                         |
