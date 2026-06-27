@@ -41,6 +41,14 @@ func TestLdapUserSearchRequestUsesConfiguredFields(t *testing.T) {
 	}
 }
 
+func TestLdapFilterFieldEscapesUserInput(t *testing.T) {
+	ldapService := &LdapService{}
+	filter := ldapService.filterField("uid", `*)(uid=*))(|(uid=*`)
+	if filter != `(uid=\2a\29\28uid=\2a\29\29\28|\28uid=\2a)` {
+		t.Fatalf("escaped filter = %q", filter)
+	}
+}
+
 func TestLdapDefaultsAndUserMapping(t *testing.T) {
 	ldapService := &LdapService{}
 	cfg := &config.Ldap{BaseDn: "dc=example,dc=com"}

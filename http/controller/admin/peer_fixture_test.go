@@ -158,6 +158,26 @@ func TestAdminPeerRoutesRequireAdminAndListFiltersPeers(t *testing.T) {
 	if payload.Data.Peers[0].RowId != fixture.peers[0].RowId || payload.Data.Peers[1].RowId != fixture.peers[1].RowId {
 		t.Fatalf("admin list peers = %#v, want alias ASC seed-host peers", payload.Data.Peers)
 	}
+
+	uuidList := adminPeerRequest(fixture.router, http.MethodGet, "/api/admin/peer/list?page=1&page_size=10&uuids=uuid-alpha,uuid-beta", "", fixture.adminToken)
+	if uuidList.Code != http.StatusOK {
+		t.Fatalf("uuid list status = %d, want %d; body=%q", uuidList.Code, http.StatusOK, uuidList.Body.String())
+	}
+	var uuidPayload struct {
+		Code int `json:"code"`
+		Data struct {
+			Total int `json:"total"`
+			Peers []struct {
+				Uuid string `json:"uuid"`
+			} `json:"list"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(uuidList.Body.Bytes(), &uuidPayload); err != nil {
+		t.Fatalf("unmarshal uuid list: %v; body=%q", err, uuidList.Body.String())
+	}
+	if uuidPayload.Code != 0 || uuidPayload.Data.Total != 2 {
+		t.Fatalf("uuid list payload = %#v, want two matching peers", uuidPayload)
+	}
 }
 
 func TestAdminPeerCreateDetailUpdateDeleteAndBatchDeleteSelectedOnly(t *testing.T) {

@@ -26,6 +26,7 @@ func Init(g *gin.Engine) {
 	ConfigBind(adg)
 
 	adg.Use(middleware.BackendUserAuth())
+	adg.POST("/logout", (&admin.Login{}).Logout)
 	//FileBind(adg)
 	UserBind(adg)
 	GroupBind(adg)
@@ -56,7 +57,7 @@ func Init(g *gin.Engine) {
 
 func RustdeskCmdBind(adg *gin.RouterGroup) {
 	cont := &admin.Rustdesk{}
-	rg := adg.Group("/rustdesk")
+	rg := adg.Group("/rustdesk").Use(middleware.AdminPrivilege())
 	rg.POST("/sendCmd", cont.SendCmd)
 	rg.GET("/cmdList", cont.CmdList)
 	rg.POST("/cmdDelete", cont.CmdDelete)
@@ -66,7 +67,6 @@ func LoginBind(rg *gin.RouterGroup) {
 	cont := &admin.Login{}
 	rg.POST("/login", cont.Login)
 	rg.GET("/captcha", cont.Captcha)
-	rg.POST("/logout", cont.Logout)
 	rg.GET("/login-options", cont.LoginOptions)
 	rg.POST("/oidc/auth", cont.OidcAuth)
 	rg.GET("/oidc/auth-query", cont.OidcAuthQuery)
@@ -80,11 +80,11 @@ func UserBind(rg *gin.RouterGroup) {
 		aR.POST("/changeCurPwd", cont.ChangeCurPwd)
 		aR.POST("/myOauth", cont.MyOauth)
 		//aR.GET("/myPeer", cont.MyPeer)
-		aR.POST("/groupUsers", cont.GroupUsers)
 	}
 	aRP := rg.Group("/user").Use(middleware.AdminPrivilege())
 	{
 		cont := &admin.User{}
+		aRP.POST("/groupUsers", cont.GroupUsers)
 		aRP.GET("/list", cont.List)
 		aRP.GET("/detail/:id", cont.Detail)
 		aRP.POST("/create", cont.Create)
@@ -149,10 +149,10 @@ func AddressBookBind(rg *gin.RouterGroup) {
 }
 func PeerBind(rg *gin.RouterGroup) {
 	aR := rg.Group("/peer")
-	aR.POST("/simpleData", (&admin.Peer{}).SimpleData)
 	aR.Use(middleware.AdminPrivilege())
 	{
 		cont := &admin.Peer{}
+		aR.POST("/simpleData", cont.SimpleData)
 		aR.GET("/list", cont.List)
 		aR.GET("/detail/:id", cont.Detail)
 		aR.POST("/create", cont.Create)

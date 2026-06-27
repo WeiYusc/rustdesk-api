@@ -2,15 +2,15 @@ package my
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/lejianwen/rustdesk-api/v2/global"
 	"github.com/lejianwen/rustdesk-api/v2/http/request/admin"
 	"github.com/lejianwen/rustdesk-api/v2/http/response"
-	"github.com/lejianwen/rustdesk-api/v2/service"
 	"github.com/lejianwen/rustdesk-api/v2/model"
+	"github.com/lejianwen/rustdesk-api/v2/service"
 	"gorm.io/gorm"
 	"sync"
-	"fmt"
 )
 
 type AddressBook struct{}
@@ -86,16 +86,14 @@ func (ct *AddressBook) Create(c *gin.Context) {
 		return
 	}
 	t := f.ToAddressBook()
-	if t.UserId != 1 {
-		u := service.AllService.UserService.CurUser(c)
-		t.UserId = u.Id
-	}
+	u := service.AllService.UserService.CurUser(c)
+	t.UserId = u.Id
 	if t.CollectionId > 0 && !service.AllService.AddressBookService.CheckCollectionOwner(t.UserId, t.CollectionId) {
 		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError"))
 		return
 	}
 
-	key := fmt.Sprintf("%d_%d_%d", t.UserId, t.Id, t.CollectionId)
+	key := fmt.Sprintf("%d_%s_%d", t.UserId, t.Id, t.CollectionId)
 	v, _ := global.AddressBookLockMap.LoadOrStore(key, &sync.Mutex{})
 	mu := v.(*sync.Mutex)
 

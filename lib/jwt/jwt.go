@@ -45,6 +45,9 @@ func (s *Jwt) GenerateToken(userId uint) string {
 
 func (s *Jwt) ParseToken(tokenString string) (uint, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &UserClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if token.Method != jwt.SigningMethodHS256 {
+			return nil, fmt.Errorf("unexpected jwt signing method: %s", token.Method.Alg())
+		}
 		return s.Key, nil
 	})
 	if err != nil {

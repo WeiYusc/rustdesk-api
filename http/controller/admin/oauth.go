@@ -8,6 +8,7 @@ import (
 	"github.com/lejianwen/rustdesk-api/v2/http/request/admin"
 	adminReq "github.com/lejianwen/rustdesk-api/v2/http/request/admin"
 	"github.com/lejianwen/rustdesk-api/v2/http/response"
+	"github.com/lejianwen/rustdesk-api/v2/model"
 	"github.com/lejianwen/rustdesk-api/v2/service"
 )
 
@@ -154,7 +155,7 @@ func (o *Oauth) Detail(c *gin.Context) {
 	iid, _ := strconv.Atoi(id)
 	u := service.AllService.OauthService.InfoById(uint(iid))
 	if u.Id > 0 {
-		response.Success(c, u)
+		response.Success(c, sanitizeOauth(u))
 		return
 	}
 	response.Fail(c, 101, response.TranslateMsg(c, "ItemNotFound"))
@@ -221,7 +222,19 @@ func (o *Oauth) List(c *gin.Context) {
 		return
 	}
 	res := service.AllService.OauthService.List(query.Page, query.PageSize, nil)
+	for i, item := range res.Oauths {
+		res.Oauths[i] = sanitizeOauth(item)
+	}
 	response.Success(c, res)
+}
+
+func sanitizeOauth(oauth *model.Oauth) *model.Oauth {
+	if oauth == nil {
+		return nil
+	}
+	safeOauth := *oauth
+	safeOauth.ClientSecret = ""
+	return &safeOauth
 }
 
 // Update 编辑

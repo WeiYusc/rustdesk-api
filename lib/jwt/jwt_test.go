@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 var pk = `-----BEGIN RSA PRIVATE KEY-----
@@ -58,6 +60,18 @@ func TestParseToken(t *testing.T) {
 	}
 	if uid != 999 {
 		t.Fatal("token解析失败")
+	}
+}
+
+func TestParseTokenRejectsUnexpectedSigningMethod(t *testing.T) {
+	jwtService := NewJwt(pk, time.Second*1000)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS384, UserClaims{UserId: 999})
+	tokenString, err := token.SignedString([]byte(pk))
+	if err != nil {
+		t.Fatalf("sign HS384 token: %v", err)
+	}
+	if _, err := jwtService.ParseToken(tokenString); err == nil {
+		t.Fatal("ParseToken accepted an unexpected signing method")
 	}
 }
 

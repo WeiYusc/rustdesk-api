@@ -1,15 +1,29 @@
 package my
 
 import (
+	"strings"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/lejianwen/rustdesk-api/v2/http/request/admin"
 	"github.com/lejianwen/rustdesk-api/v2/http/response"
 	"github.com/lejianwen/rustdesk-api/v2/service"
 	"gorm.io/gorm"
-	"time"
 )
 
 type Peer struct {
+}
+
+func splitUUIDCSV(value string) []string {
+	parts := strings.Split(value, ",")
+	res := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			res = append(res, part)
+		}
+	}
+	return res
 }
 
 // List 列表
@@ -53,7 +67,7 @@ func (ct *Peer) List(c *gin.Context) {
 			tx.Where("hostname like ?", "%"+query.Hostname+"%")
 		}
 		if query.Uuids != "" {
-			tx.Where("uuid in (?)", query.Uuids)
+			tx.Where("uuid in ?", splitUUIDCSV(query.Uuids))
 		}
 	})
 	response.Success(c, res)

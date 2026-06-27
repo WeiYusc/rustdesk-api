@@ -8,8 +8,21 @@ import (
 	"github.com/lejianwen/rustdesk-api/v2/service"
 	"gorm.io/gorm"
 	"strconv"
+	"strings"
 	"time"
 )
+
+func splitUUIDCSV(value string) []string {
+	parts := strings.Split(value, ",")
+	res := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			res = append(res, part)
+		}
+	}
+	return res
+}
 
 type Peer struct {
 }
@@ -111,7 +124,7 @@ func (ct *Peer) List(c *gin.Context) {
 			tx.Where("hostname like ?", "%"+query.Hostname+"%")
 		}
 		if query.Uuids != "" {
-			tx.Where("uuid in (?)", query.Uuids)
+			tx.Where("uuid in ?", splitUUIDCSV(query.Uuids))
 		}
 		if query.Username != "" {
 			tx.Where("username like ?", "%"+query.Username+"%")

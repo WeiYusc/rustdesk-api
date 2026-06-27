@@ -3,16 +3,16 @@ package admin
 import (
 	"encoding/json"
 	_ "encoding/json"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/lejianwen/rustdesk-api/v2/global"
 	"github.com/lejianwen/rustdesk-api/v2/http/request/admin"
 	"github.com/lejianwen/rustdesk-api/v2/http/response"
-	"github.com/lejianwen/rustdesk-api/v2/service"
 	"github.com/lejianwen/rustdesk-api/v2/model"
+	"github.com/lejianwen/rustdesk-api/v2/service"
 	"gorm.io/gorm"
 	"strconv"
 	"sync"
-	"fmt"
 )
 
 type AddressBook struct {
@@ -142,7 +142,7 @@ func (ct *AddressBook) BatchCreate(c *gin.Context) {
 		if t.UserId == 0 {
 			continue
 		}
-		key := fmt.Sprintf("%d_%d_%d", t.UserId, t.Id, t.CollectionId)
+		key := fmt.Sprintf("%d_%s_%d", t.UserId, t.Id, t.CollectionId)
 		v, _ := global.AddressBookLockMap.LoadOrStore(key, &sync.Mutex{})
 		mu := v.(*sync.Mutex)
 

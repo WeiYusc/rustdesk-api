@@ -104,7 +104,7 @@ func (us *UserService) Login(u *model.User, llog *model.LoginLog) *model.UserTok
 		ExpiredAt:  us.UserTokenExpireTimestamp(),
 	}
 	DB.Create(ut)
-	llog.UserTokenId = ut.UserId
+	llog.UserTokenId = ut.Id
 	DB.Create(llog)
 	if llog.Uuid != "" {
 		AllService.PeerService.UuidBindUserId(llog.DeviceId, llog.Uuid, u.Id)
