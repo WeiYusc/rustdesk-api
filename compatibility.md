@@ -88,10 +88,10 @@ strategy is deliberately changed.
 
 | Area | Current status | Evidence / notes | Next action |
 | --- | --- | --- | --- |
-| Admin Web UI | Partial | Admin routes/controllers and documentation exist, but full-process smoke returned `/_admin/` 404 with current resources, confirming built admin static assets are not present in this source snapshot | Verify admin build/source provenance before major UI edits; do not claim packaged UI yet |
+| Admin Web UI | Verified when built/injected by full-s6 packaging | API source checkouts still do not track built `resources/admin` assets, but `WeiYusc/rustdesk-api-web` has been contract-audited and installed-mode smoke passed after injecting its `dist` into API resources. The server full-s6 image build now performs that injection and verifies `/_admin/`, admin login/current, and `/api/admin/config/server`. | Keep API-source static-resource boundary separate from integrated-image packaging; do not claim WebClient assets are present. |
 | Mobile admin usability | Partial | `alonginwind/main` includes mobile display adjustments | Add browser/mobile smoke checklist before UI changes |
 | Docker image | Verified for linux/amd64 runtime smoke | `Dockerfile` builds from prebuilt `amd64/release`. A glibc-dynamic amd64 binary built successfully but failed in Alpine with `exec ./apimain: no such file or directory`; rebuilding with `musl-gcc` static CGO produced a working Alpine container, and `/api/version` returned success | Keep release workflow on musl/static CGO for Alpine images; do not use host glibc dynamic binaries |
-| S6/full image | Verified for linux/amd64 startup smoke | `Dockerfile_full_s6` built against `rustdesk/rustdesk-server-s6:latest`; container logs show s6 starting `hbbr`, `hbbs`, and `api`, and `/api/version` returned success | For this fork's current scope, linux/amd64 S6 startup is sufficient; real RustDesk client/server connectivity remains a separate runtime acceptance task |
+| S6/full image | Verified for linux/amd64 startup smoke; superseded for integrated deployment by server full-s6 packaging | `Dockerfile_full_s6` built against `rustdesk/rustdesk-server-s6:latest`; container logs show s6 starting `hbbr`, `hbbs`, and `api`, and `/api/version` returned success. The newer `WeiYusc/rustdesk-server` full-s6 packaging now builds a Debian+s6 local image from server/API/API-web inputs and verifies the installed admin/API/server stack. | Keep `Dockerfile_full_s6` as API-side historical compatibility evidence; use the server repo full-s6 path for the integrated-image MVP. Real RustDesk client/server connectivity remains a separate runtime acceptance task. |
 | OpenWrt package | Out of scope | Upstream users request OpenWrt packaging; reference projects document one-container deployment, but this fork currently targets local linux/amd64 only | Do not plan native/OpenWrt packaging unless scope changes |
 | ARM64 image | Out of scope | CI workflow has linux/arm64 entries, but current project decision is not to support or validate non-amd64 targets | Ignore unless future distribution scope changes |
 | i386 image | Out of scope | Upstream PR #445 proposes i386 support. Local 386 CGO failed due missing 32-bit libc headers, but non-amd64 is not a target for this fork | Do not spend effort on 386 support unless future distribution scope changes |
@@ -216,18 +216,16 @@ Exit gate:
 - No AGPL code copied.
 - Each endpoint has request/response fixtures and compatibility notes.
 
-### Stage 4: Future Server Fusion Planning
+### Stage 4: Server Full-s6 Integration Status
 
-Candidate tasks:
+The first server-side integration MVP has moved into `WeiYusc/rustdesk-server`:
 
-1. Audit official `rustdesk/rustdesk-server` current protocol behavior.
-2. Compare `lejianwen/rustdesk-server` API/JWT/MUST_LOGIN changes.
-3. Design a separate Rust patch plan based on official server source.
+- It builds a local Debian+s6 image from the server, API, and API-web inputs.
+- It injects built API-web admin assets into the image instead of tracking them in this API repository.
+- Its smoke verifies installed admin/API/server startup behavior, but not real two-client RustDesk forced-login/connect behavior.
+- The image is currently local-only and is not published to Docker Hub/GHCR.
 
-Exit gate:
-
-- Separate server plan exists.
-- API repo remains decoupled from server implementation changes.
+Future server work should continue in the server repository and keep this API repository decoupled from Rust source changes.
 
 ## Audit Checklist for Each Stage
 

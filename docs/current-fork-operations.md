@@ -6,7 +6,8 @@
 
 - 当前本地验证目标仅为 `linux/amd64`。
 - `i386`、`arm64`、OpenWrt、Windows zip、多架构 manifest/GHCR 推送均不在当前阶段范围内。
-- 真实 RustDesk GUI 客户端连通性、图形化 Web Admin、WebClient 资产恢复、以及 `rustdesk-server` 侧协议融合，均属于后续阶段。
+- 真实 RustDesk GUI 客户端连通性、WebClient 资产恢复、多架构镜像发布，以及完整生产发布流程仍属于后续阶段。
+- `rustdesk-server` 侧 full-s6 集成镜像已在 server 仓库作为本地 MVP 验证通过；真实双客户端强制登录/连接流程仍需后续实机或协议 harness 验收。
 
 ## 已验证的本机运行方式
 
@@ -16,6 +17,8 @@
 - Alpine 运行镜像不能使用宿主 glibc 动态链接的 `apimain`，否则容器内会出现 `exec ./apimain: no such file or directory`。
 - 当前通过的路径是使用 `musl-gcc` 构建静态 CGO amd64 二进制，再放入 Alpine 镜像。
 - `Dockerfile_full_s6` 的本机 amd64 启动 smoke 已通过：s6 启动 `hbbr`、`hbbs`、`api`，并且 `/api/version` 返回成功。
+- `WeiYusc/rustdesk-server` 的 full-s6 集成镜像本机 smoke 已通过：镜像从 server/API/API-web 三个本地输入构建，运行 `hbbr`、`hbbs`、`api`，注入构建后的 Web Admin 到 `/app/resources/admin`，并验证 `/_admin/`、管理员登录和 `/api/admin/config/server`。
+- 该集成镜像目前为本机 tag `rustdesk-server-full-s6:local`，尚未发布到 Docker Hub/GHCR。
 
 ### SQLite 首次启动
 
@@ -68,7 +71,7 @@ bash scripts/stage2-admin-password-reset-smoke.sh
 - `resources/admin` 不存在，因此 `/_admin/` 返回 `404`。
 - `resources/web` 不存在，因此 `/webclient/` 返回 `404`。
 
-这意味着当前 fork 不能声称“开箱即用内置 Web Admin UI / WebClient 静态应用”。如需启用 Web Admin，应按前端项目来源单独构建并放入 `resources/admin`；如需恢复 WebClient，必须先完成来源、许可证和 DMCA 风险审查。
+这意味着当前 API 仓库源码包本身不能声称“开箱即用内置 Web Admin UI / WebClient 静态应用”。如需启用 Web Admin，应按前端项目来源单独构建并放入 `resources/admin`；`WeiYusc/rustdesk-server` 的 full-s6 集成镜像会在镜像构建过程中从 `rustdesk-api-web` 构建并注入 Web Admin 产物。WebClient 仍未恢复；如需恢复 WebClient，必须先完成来源、许可证和 DMCA 风险审查。
 
 可复现 smoke：
 

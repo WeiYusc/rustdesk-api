@@ -16,11 +16,9 @@
 <img src="https://github.com/lejianwen/rustdesk-api/actions/workflows/build.yml/badge.svg"/>
 </div>
 
-## 搭配[lejianwen/rustdesk-server]使用更佳。
-> [lejianwen/rustdesk-server]fork自RustDesk Server官方仓库
-> 1. 解决了使用API链接超时问题
-> 2. 可以强制登录后才能发起链接
-> 3. 支持客户端websocket
+## 搭配 `WeiYusc/rustdesk-server` 使用
+> 当前现代化目标以 `WeiYusc/rustdesk-server` 为 server 侧集成仓库，并已本机验证 full-s6 集成镜像 MVP。
+> 旧 `lejianwen/rustdesk-server` 仍可作为 API/JWT/MUST_LOGIN 行为历史参考，但不再作为本 fork 的已验证发布目标。
 
 
 
@@ -268,48 +266,54 @@
 5. 编译，如果想自己编译,先cd到项目根目录，然后windows下直接运行`build.bat`,linux下运行`build.sh`,编译后会在`release`
    目录下生成对应的可执行文件。直接运行编译后的可执行文件即可。
 
-6. 打开浏览器访问`http://<your server[:port]>/_admin/`，默认用户名密码为`admin`，请及时更改密码。
+6. 打开浏览器访问`http://<your server[:port]>/_admin/`。初始管理员用户名为 `admin`，随机密码会打印在首次启动日志中；请及时通过后台或 `reset-admin-pwd` 修改密码。
 
 
-#### 使用`lejianwen/server-s6`镜像运行
+#### 使用 `WeiYusc/rustdesk-server` full-s6 集成镜像
 
-- 已解决链接超时问题
-- 可以强制登录后才能发起链接
-- github https://github.com/lejianwen/rustdesk-server
+当前现代化分支已经在 `WeiYusc/rustdesk-server` 中新增并本机验证了 full-s6 集成镜像构建路径：
+
+- 镜像内集成 `hbbr`、`hbbs`、本 API 服务和 `rustdesk-api-web` 构建后的 Web Admin 静态资源。
+- 本机验证命令为 `scripts/build-full-s6-image.sh` 和 `scripts/smoke-full-s6-image.sh`，验证范围包括 s6 三服务、`/_admin/`、管理员登录和 `/api/admin/config/server`。
+- 该镜像目前只在本机构建为 `rustdesk-server-full-s6:local`，尚未发布到 Docker Hub/GHCR，因此不能直接 `docker pull`。
+- 真实双客户端强制登录/连接流程仍是后续生产验收项，不能仅凭该镜像 smoke 声称完整客户端兼容。
+
+本机运行示例（需先在 `WeiYusc/rustdesk-server` 仓库构建镜像）：
 
 ```yaml
- networks:
-   rustdesk-net:
-     external: false
- services:
-   rustdesk:
-     ports:
-       - 21114:21114
-       - 21115:21115
-       - 21116:21116
-       - 21116:21116/udp
-       - 21117:21117
-       - 21118:21118
-       - 21119:21119
-     image: lejianwen/rustdesk-server-s6:latest
-     environment:
-       - RELAY=<relay_server[:port]>
-       - ENCRYPTED_ONLY=1
-       - MUST_LOGIN=N
-       - TZ=Asia/Shanghai
-       - RUSTDESK_API_RUSTDESK_ID_SERVER=<id_server[:21116]>
-       - RUSTDESK_API_RUSTDESK_RELAY_SERVER=<relay_server[:21117]>
-       - RUSTDESK_API_RUSTDESK_API_SERVER=http://<api_server[:21114]>
-       - RUSTDESK_API_KEY_FILE=/data/id_ed25519.pub
-       - RUSTDESK_API_JWT_KEY=xxxxxx # jwt key
-     volumes:
-       - /data/rustdesk/server:/data
-       - /data/rustdesk/api:/app/data #将数据库挂载
-     networks:
-       - rustdesk-net
-     restart: unless-stopped
-       
+networks:
+  rustdesk-net:
+    external: false
+services:
+  rustdesk:
+    image: rustdesk-server-full-s6:local
+    ports:
+      - 21114:21114
+      - 21115:21115
+      - 21116:21116
+      - 21116:21116/udp
+      - 21117:21117
+      - 21118:21118
+      - 21119:21119
+    environment:
+      - RELAY=<relay_server[:port]>
+      - ENCRYPTED_ONLY=1
+      - MUST_LOGIN=N
+      - TZ=Asia/Shanghai
+      - RUSTDESK_API_RUSTDESK_ID_SERVER=<id_server[:21116]>
+      - RUSTDESK_API_RUSTDESK_RELAY_SERVER=<relay_server[:21117]>
+      - RUSTDESK_API_RUSTDESK_API_SERVER=http://<api_server[:21114]>
+      - RUSTDESK_API_RUSTDESK_KEY_FILE=/data/id_ed25519.pub
+      - RUSTDESK_API_JWT_KEY=<jwt-key>
+    volumes:
+      - /data/rustdesk/server:/data
+      - /data/rustdesk/api:/app/data
+    networks:
+      - rustdesk-net
+    restart: unless-stopped
 ```
+
+旧 `lejianwen/rustdesk-server-s6:latest` 仍可作为历史参考，但本 fork 当前不再把它作为已验证发布目标。
 
 
 ## 其他

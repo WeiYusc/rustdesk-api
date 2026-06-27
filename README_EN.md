@@ -14,11 +14,9 @@ desktop software that provides self-hosted solutions.
 <img src="https://github.com/lejianwen/rustdesk-api/actions/workflows/build.yml/badge.svg"/>
 </div>
 
-## Better used with [lejianwen/rustdesk-server].
-> [lejianwen/rustdesk-server] is a fork of the official RustDesk Server repository.
-> 1. Solves the API connection timeout issue.
-> 2. Can enforce login before initiating a connection.
-> 3. Supports client websocket.
+## Use with `WeiYusc/rustdesk-server`
+> The current modernization target uses `WeiYusc/rustdesk-server` as the server-side integration repository, with a locally verified full-s6 integrated image MVP.
+> The old `lejianwen/rustdesk-server` remains useful as historical behavior reference for API/JWT/MUST_LOGIN, but it is no longer this fork's verified release target.
 
 
 # Features
@@ -280,48 +278,53 @@ Download the release from [release](https://github.com/lejianwen/rustdesk-api/re
    compiling, the corresponding executables will be generated in the `release` directory. Run the compiled executables
    directly.
 
-6. Open your browser and visit `http://<your server[:port]>/_admin/`, with default credentials `admin admin`. Please
-   change the password promptly.
+6. Open your browser and visit `http://<your server[:port]>/_admin/`. The initial admin username is `admin`; the random password is printed in the first-start logs. Change it promptly through the admin UI or `reset-admin-pwd`.
 
-#### Running with my forked server-s6 image
+#### Running with the `WeiYusc/rustdesk-server` full-s6 integrated image
 
-- Connection timeout issue resolved
-- Can enforce login before initiating a connection
-- github https://github.com/lejianwen/rustdesk-server
+The modernization branch now has a locally verified full-s6 integrated image build path in `WeiYusc/rustdesk-server`:
+
+- The image contains `hbbr`, `hbbs`, this API service, and the built `rustdesk-api-web` Web Admin assets.
+- The local verification commands are `scripts/build-full-s6-image.sh` and `scripts/smoke-full-s6-image.sh`; the smoke covers the three s6 services, `/_admin/`, admin login, and `/api/admin/config/server`.
+- The image currently exists only as the local tag `rustdesk-server-full-s6:local`. It has not been published to Docker Hub/GHCR, so users cannot `docker pull` it yet.
+- A real two-client forced-login/connect flow is still a later production acceptance gate; do not treat this image smoke as full RustDesk client compatibility.
+
+Local compose example after building the image from the `WeiYusc/rustdesk-server` repository:
 
 ```yaml
- networks:
-   rustdesk-net:
-     external: false
- services:
-   rustdesk:
-     ports:
-       - 21114:21114
-       - 21115:21115
-       - 21116:21116
-       - 21116:21116/udp
-       - 21117:21117
-       - 21118:21118
-       - 21119:21119
-     image: lejianwen/rustdesk-server-s6:latest
-     environment:
-       - RELAY=<relay_server[:port]>
-       - ENCRYPTED_ONLY=1
-       - MUST_LOGIN=N
-       - TZ=Asia/Shanghai
-       - RUSTDESK_API_RUSTDESK_ID_SERVER=<id_server[:21116]>
-       - RUSTDESK_API_RUSTDESK_RELAY_SERVER=<relay_server[:21117]>
-       - RUSTDESK_API_RUSTDESK_API_SERVER=http://<api_server[:21114]>
-       - RUSTDESK_API_KEY_FILE=/data/id_ed25519.pub
-       - RUSTDESK_API_JWT_KEY=xxxxxx # jwt key
-     volumes:
-       - /data/rustdesk/server:/data
-       - /data/rustdesk/api:/app/data #将数据库挂载
-     networks:
-       - rustdesk-net
-     restart: unless-stopped
-       
+networks:
+  rustdesk-net:
+    external: false
+services:
+  rustdesk:
+    image: rustdesk-server-full-s6:local
+    ports:
+      - 21114:21114
+      - 21115:21115
+      - 21116:21116
+      - 21116:21116/udp
+      - 21117:21117
+      - 21118:21118
+      - 21119:21119
+    environment:
+      - RELAY=<relay_server[:port]>
+      - ENCRYPTED_ONLY=1
+      - MUST_LOGIN=N
+      - TZ=Asia/Shanghai
+      - RUSTDESK_API_RUSTDESK_ID_SERVER=<id_server[:21116]>
+      - RUSTDESK_API_RUSTDESK_RELAY_SERVER=<relay_server[:21117]>
+      - RUSTDESK_API_RUSTDESK_API_SERVER=http://<api_server[:21114]>
+      - RUSTDESK_API_RUSTDESK_KEY_FILE=/data/id_ed25519.pub
+      - RUSTDESK_API_JWT_KEY=<jwt-key>
+    volumes:
+      - /data/rustdesk/server:/data
+      - /data/rustdesk/api:/app/data
+    networks:
+      - rustdesk-net
+    restart: unless-stopped
 ```
+
+The old `lejianwen/rustdesk-server-s6:latest` image remains useful as historical reference, but this fork no longer treats it as the verified release target.
 ## Others
 
 - [WIKI](https://github.com/lejianwen/rustdesk-api/wiki)
