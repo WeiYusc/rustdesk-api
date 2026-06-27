@@ -44,6 +44,8 @@ func setupAdminUserCrudFixture(t *testing.T) adminUserCrudFixture {
 		&model.User{},
 		&model.UserToken{},
 		&model.UserThird{},
+		&model.LoginLog{},
+		&model.ShareRecord{},
 		&model.AddressBook{},
 		&model.AddressBookCollection{},
 		&model.AddressBookCollectionRule{},

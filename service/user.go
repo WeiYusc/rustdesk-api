@@ -1,8 +1,10 @@
 package service
 
 import (
+	cryptorand "crypto/rand"
+	"encoding/base64"
 	"errors"
-	"math/rand"
+	mathrand "math/rand"
 	"strconv"
 	"strings"
 	"time"
@@ -90,7 +92,11 @@ func (us *UserService) GenerateToken(u *model.User) string {
 	if len(Jwt.Key) > 0 {
 		return Jwt.GenerateToken(u.Id)
 	}
-	return utils.Md5(u.Username + time.Now().String())
+	b := make([]byte, 32)
+	if _, err := cryptorand.Read(b); err != nil {
+		panic("secure token generation failed: " + err.Error())
+	}
+	return base64.RawURLEncoding.EncodeToString(b)
 }
 
 // Login 登录
@@ -216,6 +222,15 @@ func (us *UserService) Delete(u *model.User) error {
 		return errors.New("The last admin user cannot be deleted")
 	}
 	tx := DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			panic(r)
+		}
+	}()
 	// 删除用户
 	if err := tx.Delete(u).Error; err != nil {
 		tx.Rollback()
@@ -241,13 +256,27 @@ func (us *UserService) Delete(u *model.User) error {
 		tx.Rollback()
 		return err
 	}
-	tx.Commit()
-	// 删除关联的peer
-	if err := AllService.PeerService.EraseUserId(u.Id); err != nil {
-		Logger.Warn("User deleted successfully, but failed to unlink peer.")
-		return nil
+	if err := tx.Where("type = ? AND to_id = ?", model.ShareAddressBookRuleTypePersonal, u.Id).Delete(&model.AddressBookCollectionRule{}).Error; err != nil {
+		tx.Rollback()
+		return err
 	}
-	return nil
+	if err := tx.Where("user_id = ?", u.Id).Delete(&model.UserToken{}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := tx.Where("user_id = ?", u.Id).Delete(&model.LoginLog{}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := tx.Where("user_id = ?", u.Id).Delete(&model.ShareRecord{}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := tx.Model(&model.Peer{}).Where("user_id = ?", u.Id).Update("user_id", 0).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	return tx.Commit().Error
 }
 
 // Update 更新
@@ -381,7 +410,7 @@ func (us *UserService) RegisterByOauth(oauthUser *model.OauthUser, op string) (e
 // GenerateUsernameByOauth 生成用户名
 func (us *UserService) GenerateUsernameByOauth(name string) string {
 	for us.IsUsernameExists(name) {
-		name += strconv.Itoa(rand.Intn(10)) // Append a random digit (0-9)
+		name += strconv.Itoa(mathrand.Intn(10)) // Append a random digit (0-9)
 	}
 	return name
 }

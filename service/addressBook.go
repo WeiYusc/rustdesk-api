@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	SharePeerIds = make(map[string]struct{})
+	SharePeerIds   = make(map[string]struct{})
 	SharePeerIdsMu sync.RWMutex
 )
 
@@ -62,9 +62,21 @@ func (s *AddressBookService) UpdateAddressBook(abs []*model.AddressBook, userId 
 	//比较peers和数据库中的数据，如果peers中的数据在数据库中不存在，则添加，如果存在则更新，如果数据库中的数据在peers中不存在，则删除
 	// 开始事务
 	tx := DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			panic(r)
+		}
+	}()
 	//1. 获取数据库中的数据
 	var dbABs []*model.AddressBook
-	tx.Where("user_id = ?", userId).Find(&dbABs)
+	if err := tx.Where("user_id = ?", userId).Find(&dbABs).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
 	//2. 比较peers和数据库中的数据
 	//2.1 获取peers中的id
 	aBIds := make(map[string]*model.AddressBook)
@@ -90,21 +102,29 @@ func (s *AddressBookService) UpdateAddressBook(abs []*model.AddressBook, userId 
 					ab.Hostname = peer.Hostname
 				}
 			}
-			tx.Create(ab)
+			if err := tx.Create(ab).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
 		} else {
 			//更新
-			tx.Model(&model.AddressBook{}).Where("row_id = ?", dbAB.RowId).Updates(ab)
+			if err := tx.Model(&model.AddressBook{}).Where("row_id = ?", dbAB.RowId).Updates(ab).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
 		}
 	}
 	//2.4 删除
 	for id, dbAB := range dbABIds {
 		_, ok := aBIds[id]
 		if !ok {
-			tx.Delete(dbAB)
+			if err := tx.Delete(dbAB).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
 		}
 	}
-	tx.Commit()
-	return nil
+	return tx.Commit().Error
 
 }
 
@@ -169,23 +189,23 @@ func (s *AddressBookService) ShareByWebClient(m *model.ShareRecord) error {
 // 添加ShareByWebClient PeerId
 func (s *AddressBookService) AddShareByWebClientId(id string) {
 	SharePeerIdsMu.Lock()
-    defer SharePeerIdsMu.Unlock()
-    SharePeerIds[id] = struct{}{}
+	defer SharePeerIdsMu.Unlock()
+	SharePeerIds[id] = struct{}{}
 }
 
 // 清理ShareByWebClient PeerId
 func (s *AddressBookService) DeleteShareByWebClientId(id string) {
 	SharePeerIdsMu.Lock()
-    defer SharePeerIdsMu.Unlock()
-    delete(SharePeerIds, id)
+	defer SharePeerIdsMu.Unlock()
+	delete(SharePeerIds, id)
 }
 
 // 查询ShareByWebClient PeerId
 func (s *AddressBookService) QueryShareByWebClientId(id string) bool {
 	SharePeerIdsMu.RLock()
-    defer SharePeerIdsMu.RUnlock()
-    _, ok := SharePeerIds[id]
-    return ok
+	defer SharePeerIdsMu.RUnlock()
+	_, ok := SharePeerIds[id]
+	return ok
 }
 
 // SharedPeer
@@ -320,9 +340,21 @@ func (s *AddressBookService) UpdateCollection(t *model.AddressBookCollection) er
 func (s *AddressBookService) DeleteCollection(t *model.AddressBookCollection) error {
 	//删除集合下的所有规则、地址簿，再删除集合
 	tx := DB.Begin()
-	tx.Where("collection_id = ?", t.Id).Delete(&model.AddressBookCollectionRule{})
-	tx.Where("collection_id = ?", t.Id).Delete(&model.AddressBook{})
-	tx.Delete(t)
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if err := tx.Where("collection_id = ?", t.Id).Delete(&model.AddressBookCollectionRule{}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := tx.Where("collection_id = ?", t.Id).Delete(&model.AddressBook{}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := tx.Delete(t).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
 	return tx.Commit().Error
 }
 

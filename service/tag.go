@@ -32,20 +32,38 @@ func (s *TagService) ListByUserIdAndCollectionId(userId, cid uint) (res *model.T
 	})
 	return
 }
-func (s *TagService) UpdateTags(userId uint, tags map[string]uint) {
+func (s *TagService) UpdateTags(userId uint, tags map[string]uint) error {
 	tx := DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			panic(r)
+		}
+	}()
 	//先查询所有tag
 	var allTags []*model.Tag
-	tx.Where("user_id = ?", userId).Find(&allTags)
+	if err := tx.Where("user_id = ?", userId).Find(&allTags).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
 	for _, t := range allTags {
 		if _, ok := tags[t.Name]; !ok {
 			//删除
-			tx.Delete(t)
+			if err := tx.Delete(t).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
 		} else {
 			if tags[t.Name] != t.Color {
 				//更新
 				t.Color = tags[t.Name]
-				tx.Save(t)
+				if err := tx.Save(t).Error; err != nil {
+					tx.Rollback()
+					return err
+				}
 			}
 			//移除
 			delete(tags, t.Name)
@@ -57,9 +75,12 @@ func (s *TagService) UpdateTags(userId uint, tags map[string]uint) {
 		t.Name = tag
 		t.Color = color
 		t.UserId = userId
-		tx.Create(t)
+		if err := tx.Create(t).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
 	}
-	tx.Commit()
+	return tx.Commit().Error
 }
 
 // InfoById 根据用户id取用户信息
