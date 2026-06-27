@@ -320,6 +320,10 @@ func (ct *User) Register(c *gin.Context) {
 		response.Fail(c, 101, errList[0])
 		return
 	}
+	if f.Password != f.ConfirmPassword {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError"))
+		return
+	}
 	regStatus := model.StatusCode(global.Config.App.RegisterStatus)
 	// 注册状态可能未配置，默认启用
 	if regStatus != model.COMMON_STATUS_DISABLED && regStatus != model.COMMON_STATUS_ENABLE {

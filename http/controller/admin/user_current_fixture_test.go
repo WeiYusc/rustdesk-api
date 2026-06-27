@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -39,11 +40,13 @@ func setupAdminUserFixture(t *testing.T) adminUserFixture {
 	if err != nil {
 		t.Fatalf("open sqlite test db: %v", err)
 	}
-	if err := db.AutoMigrate(&model.User{}, &model.UserToken{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.UserToken{}, &model.LoginLog{}); err != nil {
 		t.Fatalf("migrate admin user models: %v", err)
 	}
 
 	global.Config = config.Config{Lang: "en"}
+	global.Config.App.Register = true
+	global.Config.App.RegisterStatus = int(model.COMMON_STATUS_ENABLE)
 	global.Logger = logrus.New()
 	global.Localizer = func(lang string) *i18n.Localizer {
 		return i18n.NewLocalizer(i18n.NewBundle(language.English))
@@ -58,6 +61,7 @@ func setupAdminUserFixture(t *testing.T) adminUserFixture {
 
 	router := gin.New()
 	controller := &User{}
+	router.POST("/api/admin/user/register", controller.Register)
 	user := router.Group("/api/admin/user").Use(middleware.BackendUserAuth())
 	user.GET("/current", controller.Current)
 	user.GET("/list", middleware.AdminPrivilege(), controller.List)
@@ -100,6 +104,54 @@ func adminUserRequest(router *gin.Engine, method string, target string, body str
 	}
 	router.ServeHTTP(recorder, request)
 	return recorder
+}
+
+func TestAdminUserRegisterRejectsMismatchedConfirmPassword(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fixture := setupAdminUserFixture(t)
+
+	response := adminUserRequest(fixture.router, http.MethodPost, "/api/admin/user/register", `{"username":"confirm-mismatch","email":"confirm@example.test","password":"pass1234","confirm_password":"different123"}`, "")
+	if response.Code != http.StatusOK {
+		t.Fatalf("register status = %d, want %d; body=%q", response.Code, http.StatusOK, response.Body.String())
+	}
+	assertAdminUserResponseCode(t, response.Body.Bytes(), 101)
+
+	var users []model.User
+	if err := fixture.db.Where("username = ?", "confirm-mismatch").Find(&users).Error; err != nil {
+		t.Fatalf("query registered user: %v", err)
+	}
+	if len(users) != 0 {
+		t.Fatalf("mismatched confirm_password created users = %#v", users)
+	}
+}
+
+func TestAdminUserRegisterAcceptsMatchingConfirmPassword(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fixture := setupAdminUserFixture(t)
+
+	response := adminUserRequest(fixture.router, http.MethodPost, "/api/admin/user/register", `{"username":"confirm-match","email":"match@example.test","password":"pass1234","confirm_password":"pass1234"}`, "")
+	if response.Code != http.StatusOK {
+		t.Fatalf("register status = %d, want %d; body=%q", response.Code, http.StatusOK, response.Body.String())
+	}
+
+	var payload struct {
+		Code int `json:"code"`
+		Data struct {
+			Username   string   `json:"username"`
+			Email      string   `json:"email"`
+			Token      string   `json:"token"`
+			RouteNames []string `json:"route_names"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal register response: %v; body=%q", err, response.Body.String())
+	}
+	if payload.Code != 0 || payload.Data.Username != "confirm-match" || payload.Data.Email != "match@example.test" || payload.Data.Token == "" {
+		t.Fatalf("register payload = %#v", payload)
+	}
+	if !reflect.DeepEqual(payload.Data.RouteNames, model.UserRouteNames) {
+		t.Fatalf("registered route_names = %#v, want %#v", payload.Data.RouteNames, model.UserRouteNames)
+	}
 }
 
 func TestAdminUserCurrentUsesBackendAuthAndReturnsRoleRoutes(t *testing.T) {
