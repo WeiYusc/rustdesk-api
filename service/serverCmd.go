@@ -12,12 +12,33 @@ type ServerCmdService struct{}
 // List
 func (is *ServerCmdService) List(page, pageSize uint) (res *model.ServerCmdList) {
 	res = &model.ServerCmdList{}
+	if page == 0 {
+		page = 1
+	}
+	if pageSize == 0 {
+		pageSize = 10
+	}
 	res.Page = int64(page)
 	res.PageSize = int64(pageSize)
+
+	commands := make([]*model.ServerCmd, 0, len(model.SysIdServerCmds)+len(model.SysRelayServerCmds))
+	commands = append(commands, model.SysIdServerCmds...)
+	commands = append(commands, model.SysRelayServerCmds...)
 	tx := DB.Model(&model.ServerCmd{})
-	tx.Count(&res.Total)
-	tx.Scopes(Paginate(page, pageSize))
-	tx.Find(&res.ServerCmds)
+	var customCommands []*model.ServerCmd
+	tx.Order("id ASC").Find(&customCommands)
+	commands = append(commands, customCommands...)
+	res.Total = int64(len(commands))
+	start := int((page - 1) * pageSize)
+	if start >= len(commands) {
+		res.ServerCmds = []*model.ServerCmd{}
+		return
+	}
+	end := start + int(pageSize)
+	if end > len(commands) {
+		end = len(commands)
+	}
+	res.ServerCmds = commands[start:end]
 	return
 }
 

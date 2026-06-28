@@ -24,14 +24,7 @@ func (r *Rustdesk) CmdList(c *gin.Context) {
 		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+err.Error())
 		return
 	}
-	res := service.AllService.ServerCmdService.List(q.Page, q.PageSize)
-	//在列表前添加系统命令
-	list := make([]*model.ServerCmd, 0)
-	list = append(list, model.SysIdServerCmds...)
-	list = append(list, model.SysRelayServerCmds...)
-	list = append(list, res.ServerCmds...)
-	res.ServerCmds = list
-	response.Success(c, res)
+	response.Success(c, service.AllService.ServerCmdService.List(q.Page, q.PageSize))
 }
 
 func (r *Rustdesk) CmdDelete(c *gin.Context) {
