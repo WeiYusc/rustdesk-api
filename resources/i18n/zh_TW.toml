@@ -182,3 +182,33 @@ other = "不能刪除最後一個管理員使用者。"
 description = "不能停用或取消最後一個管理員權限。"
 one = "不能停用或取消最後一個管理員權限。"
 other = "不能停用或取消最後一個管理員權限。"
+
+[NoCaptchaRequired]
+description = "無需驗證碼。"
+one = "無需驗證碼。"
+other = "無需驗證碼。"
+
+[UserDisabled]
+description = "使用者已停用。"
+one = "使用者已停用。"
+other = "使用者已停用。"
+
+[UserNotFound]
+description = "找不到使用者。"
+one = "找不到使用者。"
+other = "找不到使用者。"
+
+[LoginFailed]
+description = "登入失敗。"
+one = "登入失敗。"
+other = "登入失敗。"
+
+[LoginBanned]
+description = "登入暫時受限。"
+one = "登入暫時受限。"
+other = "登入暫時受限。"
+
+[UsernameExists]
+description = "使用者名稱已存在。"
+one = "使用者名稱已存在。"
+other = "使用者名稱已存在。"

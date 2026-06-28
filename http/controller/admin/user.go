@@ -126,7 +126,7 @@ func (ct *User) Update(c *gin.Context) {
 	u := f.ToUser()
 	err := service.AllService.UserService.Update(u)
 	if err != nil {
-		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
+		response.Fail(c, 101, translateUserServiceError(c, "OperationFailed", err))
 		return
 	}
 	response.Success(c, nil)
@@ -162,10 +162,25 @@ func (ct *User) Delete(c *gin.Context) {
 			response.Success(c, nil)
 			return
 		}
-		response.Fail(c, 101, err.Error())
+		response.Fail(c, 101, translateUserServiceError(c, "", err))
 		return
 	}
 	response.Fail(c, 101, response.TranslateMsg(c, "ItemNotFound"))
+}
+
+func translateUserServiceError(c *gin.Context, fallbackPrefix string, err error) string {
+	if err == nil {
+		return ""
+	}
+	switch err.Error() {
+	case "LastAdminCannotDelete", "LastAdminCannotUpdate":
+		return response.TranslateMsg(c, err.Error())
+	default:
+		if fallbackPrefix == "" {
+			return err.Error()
+		}
+		return response.TranslateMsg(c, fallbackPrefix) + err.Error()
+	}
 }
 
 // UpdatePassword 修改密码

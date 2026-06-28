@@ -219,7 +219,7 @@ func (us *UserService) Logout(u *model.User, token string) error {
 func (us *UserService) Delete(u *model.User) error {
 	userCount := us.getAdminUserCount()
 	if userCount <= 1 && us.IsAdmin(u) {
-		return errors.New("The last admin user cannot be deleted")
+		return errors.New("LastAdminCannotDelete")
 	}
 	tx := DB.Begin()
 	if tx.Error != nil {
@@ -287,7 +287,7 @@ func (us *UserService) Update(u *model.User) error {
 		adminCount := us.getAdminUserCount()
 		// 如果这是唯一的管理员，确保不能禁用或取消管理员权限
 		if adminCount <= 1 && (!us.IsAdmin(u) || u.Status == model.COMMON_STATUS_DISABLED) {
-			return errors.New("The last admin user cannot be disabled or demoted")
+			return errors.New("LastAdminCannotUpdate")
 		}
 	}
 	return DB.Model(u).Updates(u).Error

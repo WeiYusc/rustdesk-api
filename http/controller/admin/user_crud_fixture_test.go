@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/gin-gonic/gin"
 	"github.com/lejianwen/rustdesk-api/v2/config"
 	"github.com/lejianwen/rustdesk-api/v2/global"
@@ -56,9 +58,12 @@ func setupAdminUserCrudFixture(t *testing.T) adminUserCrudFixture {
 
 	global.Config = config.Config{Lang: "en"}
 	global.Logger = logrus.New()
-	global.Localizer = func(lang string) *i18n.Localizer {
-		return i18n.NewLocalizer(i18n.NewBundle(language.English))
+	bundle := i18n.NewBundle(language.English)
+	bundle.RegisterUnmarshalFunc("toml", toml.Unmarshal)
+	if _, err := bundle.LoadMessageFile(filepath.Join("..", "..", "..", "resources", "i18n", "en.toml")); err != nil {
+		t.Fatalf("load en locale: %v", err)
 	}
+	global.Localizer = func(lang string) *i18n.Localizer { return i18n.NewLocalizer(bundle, lang) }
 	global.LoginLimiter = utils.NewLoginLimiter(utils.SecurityPolicy{CaptchaThreshold: -1, BanThreshold: 0})
 	global.ApiInitValidator()
 	global.Jwt = jwt.NewJwt("", 0)
@@ -200,6 +205,29 @@ func TestAdminUserCreateDetailUpdateAndDeleteSelectedOnly(t *testing.T) {
 	assertAdminUserCRUDRowCount(t, fixture.db, fixture.otherUser.Id, 1)
 }
 
+func TestAdminUserLastAdminErrorsDoNotExposeI18nKeys(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fixture := setupAdminUserCrudFixture(t)
+
+	if err := fixture.db.Where("id <> ?", fixture.adminUser.Id).Delete(&model.User{}).Error; err != nil {
+		t.Fatalf("remove non-admin users: %v", err)
+	}
+
+	deleteResponse := adminUserCrudRequest(fixture.router, http.MethodPost, "/api/admin/user/delete", `{"id":`+strconv.FormatUint(uint64(fixture.adminUser.Id), 10)+`}`, fixture.adminToken)
+	if deleteResponse.Code != http.StatusOK {
+		t.Fatalf("delete last admin status = %d, want %d; body=%q", deleteResponse.Code, http.StatusOK, deleteResponse.Body.String())
+	}
+	assertAdminUserCRUDResponseCode(t, deleteResponse.Body.Bytes(), 101)
+	assertAdminUserCRUDResponseMessageNotRawKey(t, deleteResponse.Body.Bytes(), "LastAdminCannotDelete")
+
+	updateResponse := adminUserCrudRequest(fixture.router, http.MethodPost, "/api/admin/user/update", `{"id":`+strconv.FormatUint(uint64(fixture.adminUser.Id), 10)+`,"username":"admin-crud-user","group_id":1,"is_admin":false,"status":1}`, fixture.adminToken)
+	if updateResponse.Code != http.StatusOK {
+		t.Fatalf("update last admin status = %d, want %d; body=%q", updateResponse.Code, http.StatusOK, updateResponse.Body.String())
+	}
+	assertAdminUserCRUDResponseCode(t, updateResponse.Body.Bytes(), 101)
+	assertAdminUserCRUDResponseMessageNotRawKey(t, updateResponse.Body.Bytes(), "LastAdminCannotUpdate")
+}
+
 func assertAdminUserCRUDResponseCode(t *testing.T, body []byte, want int) {
 	t.Helper()
 	var payload struct {
@@ -210,6 +238,19 @@ func assertAdminUserCRUDResponseCode(t *testing.T, body []byte, want int) {
 	}
 	if payload.Code != want {
 		t.Fatalf("response code = %d, want %d; body=%q", payload.Code, want, string(body))
+	}
+}
+
+func assertAdminUserCRUDResponseMessageNotRawKey(t *testing.T, body []byte, key string) {
+	t.Helper()
+	var payload struct {
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("unmarshal response message: %v; body=%q", err, string(body))
+	}
+	if payload.Message == key || strings.Contains(payload.Message, key) {
+		t.Fatalf("response message exposes raw key %q: body=%q", key, string(body))
 	}
 }
 

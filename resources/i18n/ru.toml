@@ -182,3 +182,33 @@ other = "The last admin user cannot be deleted."
 description = "The last admin user cannot be disabled or demoted."
 one = "The last admin user cannot be disabled or demoted."
 other = "The last admin user cannot be disabled or demoted."
+
+[NoCaptchaRequired]
+description = "Captcha is not required."
+one = "Captcha не требуется."
+other = "Captcha не требуется."
+
+[UserDisabled]
+description = "User is disabled."
+one = "Пользователь отключен."
+other = "Пользователь отключен."
+
+[UserNotFound]
+description = "User not found."
+one = "Пользователь не найден."
+other = "Пользователь не найден."
+
+[LoginFailed]
+description = "Login failed."
+one = "Ошибка входа."
+other = "Ошибка входа."
+
+[LoginBanned]
+description = "Login is temporarily banned."
+one = "Вход временно заблокирован."
+other = "Вход временно заблокирован."
+
+[UsernameExists]
+description = "Username already exists."
+one = "Имя пользователя уже существует."
+other = "Имя пользователя уже существует."

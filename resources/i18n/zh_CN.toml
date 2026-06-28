@@ -175,3 +175,33 @@ other = "不能删除最后一个管理员用户。"
 description = "不能禁用或取消最后一个管理员权限。"
 one = "不能禁用或取消最后一个管理员权限。"
 other = "不能禁用或取消最后一个管理员权限。"
+
+[NoCaptchaRequired]
+description = "无需验证码。"
+one = "无需验证码。"
+other = "无需验证码。"
+
+[UserDisabled]
+description = "用户已禁用。"
+one = "用户已禁用。"
+other = "用户已禁用。"
+
+[UserNotFound]
+description = "用户不存在。"
+one = "用户不存在。"
+other = "用户不存在。"
+
+[LoginFailed]
+description = "登录失败。"
+one = "登录失败。"
+other = "登录失败。"
+
+[LoginBanned]
+description = "登录暂时被限制。"
+one = "登录暂时被限制。"
+other = "登录暂时被限制。"
+
+[UsernameExists]
+description = "用户名已存在。"
+one = "用户名已存在。"
+other = "用户名已存在。"

@@ -173,3 +173,33 @@ other = "The last admin user cannot be deleted."
 description = "The last admin user cannot be disabled or demoted."
 one = "The last admin user cannot be disabled or demoted."
 other = "The last admin user cannot be disabled or demoted."
+
+[NoCaptchaRequired]
+description = "Captcha is not required."
+one = "Captcha is not required."
+other = "Captcha is not required."
+
+[UserDisabled]
+description = "User is disabled."
+one = "User is disabled."
+other = "User is disabled."
+
+[UserNotFound]
+description = "User not found."
+one = "User not found."
+other = "User not found."
+
+[LoginFailed]
+description = "Login failed."
+one = "Login failed."
+other = "Login failed."
+
+[LoginBanned]
+description = "Login is temporarily banned."
+one = "Login is temporarily banned."
+other = "Login is temporarily banned."
+
+[UsernameExists]
+description = "Username already exists."
+one = "Username already exists."
+other = "Username already exists."
