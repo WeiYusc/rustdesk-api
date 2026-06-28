@@ -24,7 +24,7 @@ func (r *Rustdesk) CmdList(c *gin.Context) {
 		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+err.Error())
 		return
 	}
-	res := service.AllService.ServerCmdService.List(q.Page, 9999)
+	res := service.AllService.ServerCmdService.List(q.Page, q.PageSize)
 	//在列表前添加系统命令
 	list := make([]*model.ServerCmd, 0)
 	list = append(list, model.SysIdServerCmds...)

@@ -161,3 +161,18 @@ other = "금지됨."
 description = "Register success wait admin confirm."
 one = "가입 성공, 관리자 확인 대기 중."
 other = "가입 성공, 관리자 확인 대기 중."
+
+[PasswordMismatch]
+description = "Password confirmation does not match."
+one = "Password confirmation does not match."
+other = "Password confirmation does not match."
+
+[LastAdminCannotDelete]
+description = "The last admin user cannot be deleted."
+one = "The last admin user cannot be deleted."
+other = "The last admin user cannot be deleted."
+
+[LastAdminCannotUpdate]
+description = "The last admin user cannot be disabled or demoted."
+one = "The last admin user cannot be disabled or demoted."
+other = "The last admin user cannot be disabled or demoted."

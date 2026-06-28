@@ -167,3 +167,18 @@ other = "Prohibido."
 description = "Register success, wait admin confirm."
 one = "Registro exitoso, espere la confirmación del administrador."
 other = "Registro exitoso, espere la confirmación del administrador."
+
+[PasswordMismatch]
+description = "Password confirmation does not match."
+one = "Password confirmation does not match."
+other = "Password confirmation does not match."
+
+[LastAdminCannotDelete]
+description = "The last admin user cannot be deleted."
+one = "The last admin user cannot be deleted."
+other = "The last admin user cannot be deleted."
+
+[LastAdminCannotUpdate]
+description = "The last admin user cannot be disabled or demoted."
+one = "The last admin user cannot be disabled or demoted."
+other = "The last admin user cannot be disabled or demoted."

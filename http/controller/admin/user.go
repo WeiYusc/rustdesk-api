@@ -260,6 +260,27 @@ func (ct *User) ChangeCurPwd(c *gin.Context) {
 	response.Success(c, nil)
 }
 
+// ChangeCurInfo 修改当前用户资料
+func (ct *User) ChangeCurInfo(c *gin.Context) {
+	f := &admin.ChangeCurInfoForm{}
+	if err := c.ShouldBindJSON(f); err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+err.Error())
+		return
+	}
+	errList := global.Validator.ValidStruct(c, f)
+	if len(errList) > 0 {
+		response.Fail(c, 101, errList[0])
+		return
+	}
+	u := service.AllService.UserService.CurUser(c)
+	err := service.AllService.UserService.UpdateCurrentInfo(u, f.Nickname, f.Avatar)
+	if err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
+		return
+	}
+	response.Success(c, nil)
+}
+
 // MyOauth
 // @Tags 用户
 // @Summary 我的授权
@@ -321,7 +342,7 @@ func (ct *User) Register(c *gin.Context) {
 		return
 	}
 	if f.Password != f.ConfirmPassword {
-		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError"))
+		response.Fail(c, 101, response.TranslateMsg(c, "PasswordMismatch"))
 		return
 	}
 	regStatus := model.StatusCode(global.Config.App.RegisterStatus)

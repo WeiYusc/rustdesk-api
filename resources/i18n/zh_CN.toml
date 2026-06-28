@@ -160,3 +160,18 @@ other = "已被封禁。"
 description = "Register success, wait for admin confirm."
 one = "注册成功，请等待管理员审核。"
 other = "注册成功，请等待管理员审核。"
+
+[PasswordMismatch]
+description = "两次输入的密码不一致。"
+one = "两次输入的密码不一致。"
+other = "两次输入的密码不一致。"
+
+[LastAdminCannotDelete]
+description = "不能删除最后一个管理员用户。"
+one = "不能删除最后一个管理员用户。"
+other = "不能删除最后一个管理员用户。"
+
+[LastAdminCannotUpdate]
+description = "不能禁用或取消最后一个管理员权限。"
+one = "不能禁用或取消最后一个管理员权限。"
+other = "不能禁用或取消最后一个管理员权限。"

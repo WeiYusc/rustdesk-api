@@ -64,6 +64,7 @@ func setupAdminUserFixture(t *testing.T) adminUserFixture {
 	router.POST("/api/admin/user/register", controller.Register)
 	user := router.Group("/api/admin/user").Use(middleware.BackendUserAuth())
 	user.GET("/current", controller.Current)
+	user.POST("/changeCurInfo", controller.ChangeCurInfo)
 	user.GET("/list", middleware.AdminPrivilege(), controller.List)
 
 	return adminUserFixture{
@@ -253,6 +254,33 @@ func TestAdminUserListRequiresAdminPrivilegeAndReturnsUsers(t *testing.T) {
 	}
 	if !seen[fixture.adminUser.Username] || !seen[fixture.nonAdminUser.Username] {
 		t.Fatalf("admin list users = %#v, want seeded users", listPayload.Data.Users)
+	}
+}
+
+func TestAdminUserChangeCurInfoUpdatesOnlyCurrentUser(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fixture := setupAdminUserFixture(t)
+
+	response := adminUserRequest(fixture.router, http.MethodPost, "/api/admin/user/changeCurInfo", `{"nickname":"Updated User","avatar":"https://example.test/avatar.png"}`, fixture.nonAdminToken)
+	if response.Code != http.StatusOK {
+		t.Fatalf("changeCurInfo status = %d, want %d; body=%q", response.Code, http.StatusOK, response.Body.String())
+	}
+	assertAdminUserResponseCode(t, response.Body.Bytes(), 0)
+
+	var updated model.User
+	if err := fixture.db.First(&updated, fixture.nonAdminUser.Id).Error; err != nil {
+		t.Fatalf("query updated current user: %v", err)
+	}
+	if updated.Nickname != "Updated User" || updated.Avatar != "https://example.test/avatar.png" {
+		t.Fatalf("updated current user nickname/avatar = %q/%q", updated.Nickname, updated.Avatar)
+	}
+
+	var adminUser model.User
+	if err := fixture.db.First(&adminUser, fixture.adminUser.Id).Error; err != nil {
+		t.Fatalf("query admin user: %v", err)
+	}
+	if adminUser.Nickname != fixture.adminUser.Nickname || adminUser.Avatar != fixture.adminUser.Avatar {
+		t.Fatalf("changeCurInfo modified another user: %#v", adminUser)
 	}
 }
 

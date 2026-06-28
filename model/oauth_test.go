@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -69,5 +70,19 @@ func TestOidcUserEmailVerified(t *testing.T) {
 				t.Fatalf("ToOauthUser().VerifiedEmail = %v, want %v", oauthUser.VerifiedEmail, tt.want)
 			}
 		})
+	}
+}
+
+func TestOauthClientSecretIsNotSerialized(t *testing.T) {
+	oauth := Oauth{Op: "oidc", ClientId: "client", ClientSecret: "super-secret"}
+	body, err := json.Marshal(oauth)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	if string(body) == "" || !json.Valid(body) {
+		t.Fatalf("invalid json body %q", string(body))
+	}
+	if strings.Contains(string(body), "client_secret") || strings.Contains(string(body), "super-secret") {
+		t.Fatalf("serialized oauth leaked client secret: %s", body)
 	}
 }

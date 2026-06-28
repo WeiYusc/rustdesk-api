@@ -167,3 +167,18 @@ other = "已被禁用。"
 description = "Register success, wait admin confirm."
 one = "註冊成功，等待管理員確認。"
 other = "註冊成功，等待管理員確認。"
+
+[PasswordMismatch]
+description = "兩次輸入的密碼不一致。"
+one = "兩次輸入的密碼不一致。"
+other = "兩次輸入的密碼不一致。"
+
+[LastAdminCannotDelete]
+description = "不能刪除最後一個管理員使用者。"
+one = "不能刪除最後一個管理員使用者。"
+other = "不能刪除最後一個管理員使用者。"
+
+[LastAdminCannotUpdate]
+description = "不能停用或取消最後一個管理員權限。"
+one = "不能停用或取消最後一個管理員權限。"
+other = "不能停用或取消最後一個管理員權限。"

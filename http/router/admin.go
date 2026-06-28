@@ -62,6 +62,7 @@ func RustdeskCmdBind(adg *gin.RouterGroup) {
 	rg.GET("/cmdList", cont.CmdList)
 	rg.POST("/cmdDelete", cont.CmdDelete)
 	rg.POST("/cmdCreate", cont.CmdCreate)
+	rg.POST("/cmdUpdate", cont.CmdUpdate)
 }
 func LoginBind(rg *gin.RouterGroup) {
 	cont := &admin.Login{}
@@ -78,6 +79,7 @@ func UserBind(rg *gin.RouterGroup) {
 		cont := &admin.User{}
 		aR.GET("/current", cont.Current)
 		aR.POST("/changeCurPwd", cont.ChangeCurPwd)
+		aR.POST("/changeCurInfo", cont.ChangeCurInfo)
 		aR.POST("/myOauth", cont.MyOauth)
 		//aR.GET("/myPeer", cont.MyPeer)
 	}
