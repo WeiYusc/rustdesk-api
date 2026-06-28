@@ -112,6 +112,16 @@ func TestAdminRustdeskCmdListPaginatesSystemAndCustomCommandsTogether(t *testing
 	}
 }
 
+func TestAdminRustdeskSystemCommandsExposeImplementedPunchRequestsOnly(t *testing.T) {
+	commands := append([]*model.ServerCmd{}, model.SysIdServerCmds...)
+	if !adminRustdeskCmdsContain(commands, "punch-requests", "pr") {
+		t.Fatal("SysIdServerCmds missing implemented punch-requests/pr command")
+	}
+	if adminRustdeskCmdsContain(commands, "reload-geo", "rg") {
+		t.Fatal("SysIdServerCmds should not expose unimplemented reload-geo/rg command")
+	}
+}
+
 type adminRustdeskCmdListPayload struct {
 	Code int `json:"code"`
 	Data struct {
@@ -123,6 +133,15 @@ type adminRustdeskCmdListPayload struct {
 			Target string `json:"target"`
 		} `json:"list"`
 	} `json:"data"`
+}
+
+func adminRustdeskCmdsContain(commands []*model.ServerCmd, cmd string, alias string) bool {
+	for _, command := range commands {
+		if command.Cmd == cmd && command.Alias == alias {
+			return true
+		}
+	}
+	return false
 }
 
 func decodeAdminRustdeskCmdListResponse(t *testing.T, body []byte) adminRustdeskCmdListPayload {
