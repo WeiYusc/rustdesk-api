@@ -45,6 +45,7 @@ func setupAdminUserCrudFixture(t *testing.T) adminUserCrudFixture {
 	if err := db.AutoMigrate(
 		&model.User{},
 		&model.UserToken{},
+		&model.Group{},
 		&model.UserThird{},
 		&model.LoginLog{},
 		&model.ShareRecord{},
@@ -68,6 +69,12 @@ func setupAdminUserCrudFixture(t *testing.T) adminUserCrudFixture {
 	global.ApiInitValidator()
 	global.Jwt = jwt.NewJwt("", 0)
 	service.New(&global.Config, db, global.Logger, global.Jwt, nil)
+	if err := db.Create(&model.Group{Name: "Default Group", Type: model.GroupTypeDefault}).Error; err != nil {
+		t.Fatalf("create default group: %v", err)
+	}
+	if err := db.Create(&model.Group{Name: "Second Group", Type: model.GroupTypeShare}).Error; err != nil {
+		t.Fatalf("create second group: %v", err)
+	}
 
 	adminUser := createAdminUserCrudFixtureUser(t, db, "admin-crud-user", true, "admin-crud-token")
 	createAdminUserCrudFixtureUser(t, db, "non-admin-crud-user", false, "non-admin-crud-token")
@@ -80,6 +87,7 @@ func setupAdminUserCrudFixture(t *testing.T) adminUserCrudFixture {
 	user.POST("/create", controller.Create)
 	user.POST("/update", controller.Update)
 	user.POST("/delete", controller.Delete)
+	user.POST("/groupUsers", controller.GroupUsers)
 
 	return adminUserCrudFixture{
 		db:            db,
@@ -228,6 +236,44 @@ func TestAdminUserLastAdminErrorsDoNotExposeI18nKeys(t *testing.T) {
 	assertAdminUserCRUDResponseMessageNotRawKey(t, updateResponse.Body.Bytes(), "LastAdminCannotUpdate")
 }
 
+func TestAdminUserGroupUsersSupportsGroupIdFiltering(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fixture := setupAdminUserCrudFixture(t)
+
+	groupOneUser := createAdminUserCrudFixtureUser(t, fixture.db, "group-one-user", false, "group-one-token")
+	groupTwoUser := createAdminUserCrudFixtureUser(t, fixture.db, "group-two-user", false, "group-two-token")
+	if err := fixture.db.Model(groupTwoUser).Update("group_id", 2).Error; err != nil {
+		t.Fatalf("set group two user group: %v", err)
+	}
+
+	unfiltered := adminUserCrudRequest(fixture.router, http.MethodPost, "/api/admin/user/groupUsers", `{}`, fixture.adminToken)
+	if unfiltered.Code != http.StatusOK {
+		t.Fatalf("unfiltered groupUsers status = %d, want %d; body=%q", unfiltered.Code, http.StatusOK, unfiltered.Body.String())
+	}
+	assertAdminUserCRUDResponseCode(t, unfiltered.Body.Bytes(), 0)
+	assertAdminUserCRUDGroupUsersGroupCount(t, unfiltered.Body.Bytes(), 2)
+	assertAdminUserCRUDGroupUsersContains(t, unfiltered.Body.Bytes(), groupOneUser.Id)
+	assertAdminUserCRUDGroupUsersContains(t, unfiltered.Body.Bytes(), groupTwoUser.Id)
+
+	emptyBody := adminUserCrudRequest(fixture.router, http.MethodPost, "/api/admin/user/groupUsers", ``, fixture.adminToken)
+	if emptyBody.Code != http.StatusOK {
+		t.Fatalf("empty-body groupUsers status = %d, want %d; body=%q", emptyBody.Code, http.StatusOK, emptyBody.Body.String())
+	}
+	assertAdminUserCRUDResponseCode(t, emptyBody.Body.Bytes(), 0)
+	assertAdminUserCRUDGroupUsersGroupCount(t, emptyBody.Body.Bytes(), 2)
+	assertAdminUserCRUDGroupUsersContains(t, emptyBody.Body.Bytes(), groupOneUser.Id)
+	assertAdminUserCRUDGroupUsersContains(t, emptyBody.Body.Bytes(), groupTwoUser.Id)
+
+	filtered := adminUserCrudRequest(fixture.router, http.MethodPost, "/api/admin/user/groupUsers", `{"group_id":2}`, fixture.adminToken)
+	if filtered.Code != http.StatusOK {
+		t.Fatalf("filtered groupUsers status = %d, want %d; body=%q", filtered.Code, http.StatusOK, filtered.Body.String())
+	}
+	assertAdminUserCRUDResponseCode(t, filtered.Body.Bytes(), 0)
+	assertAdminUserCRUDGroupUsersGroupCount(t, filtered.Body.Bytes(), 2)
+	assertAdminUserCRUDGroupUsersContains(t, filtered.Body.Bytes(), groupTwoUser.Id)
+	assertAdminUserCRUDGroupUsersMissing(t, filtered.Body.Bytes(), groupOneUser.Id)
+}
+
 func assertAdminUserCRUDResponseCode(t *testing.T, body []byte, want int) {
 	t.Helper()
 	var payload struct {
@@ -252,6 +298,59 @@ func assertAdminUserCRUDResponseMessageNotRawKey(t *testing.T, body []byte, key 
 	if payload.Message == key || strings.Contains(payload.Message, key) {
 		t.Fatalf("response message exposes raw key %q: body=%q", key, string(body))
 	}
+}
+
+func assertAdminUserCRUDGroupUsersGroupCount(t *testing.T, body []byte, want int) {
+	t.Helper()
+	var payload struct {
+		Code int `json:"code"`
+		Data struct {
+			Groups []struct {
+				Id uint `json:"id"`
+			} `json:"groups"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("unmarshal groupUsers groups: %v; body=%q", err, string(body))
+	}
+	if len(payload.Data.Groups) != want {
+		t.Fatalf("groupUsers group count = %d, want %d; body=%q", len(payload.Data.Groups), want, string(body))
+	}
+}
+
+func assertAdminUserCRUDGroupUsersContains(t *testing.T, body []byte, userId uint) {
+	t.Helper()
+	if !adminUserCRUDGroupUsersHasUser(t, body, userId) {
+		t.Fatalf("groupUsers response missing user %d: body=%q", userId, string(body))
+	}
+}
+
+func assertAdminUserCRUDGroupUsersMissing(t *testing.T, body []byte, userId uint) {
+	t.Helper()
+	if adminUserCRUDGroupUsersHasUser(t, body, userId) {
+		t.Fatalf("groupUsers response unexpectedly includes user %d: body=%q", userId, string(body))
+	}
+}
+
+func adminUserCRUDGroupUsersHasUser(t *testing.T, body []byte, userId uint) bool {
+	t.Helper()
+	var payload struct {
+		Code int `json:"code"`
+		Data struct {
+			Users []struct {
+				Id uint `json:"id"`
+			} `json:"users"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("unmarshal groupUsers response: %v; body=%q", err, string(body))
+	}
+	for _, user := range payload.Data.Users {
+		if user.Id == userId {
+			return true
+		}
+	}
+	return false
 }
 
 func assertAdminUserCRUDRowCount(t *testing.T, db *gorm.DB, id uint, want int64) {

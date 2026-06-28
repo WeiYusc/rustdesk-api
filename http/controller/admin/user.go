@@ -1,6 +1,9 @@
 package admin
 
 import (
+	"errors"
+	"io"
+
 	"github.com/gin-gonic/gin"
 	"github.com/lejianwen/rustdesk-api/v2/global"
 	"github.com/lejianwen/rustdesk-api/v2/http/request/admin"
@@ -332,8 +335,17 @@ func (ct *User) MyOauth(c *gin.Context) {
 
 // groupUsers
 func (ct *User) GroupUsers(c *gin.Context) {
+	query := &admin.GroupUsersQuery{}
+	if err := c.ShouldBindJSON(query); err != nil && !errors.Is(err, io.EOF) {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+err.Error())
+		return
+	}
 	aG := service.AllService.GroupService.List(1, 999, nil)
-	aU := service.AllService.UserService.List(1, 9999, nil)
+	aU := service.AllService.UserService.List(1, 9999, func(tx *gorm.DB) {
+		if query.GroupId > 0 {
+			tx.Where("group_id = ?", query.GroupId)
+		}
+	})
 	response.Success(c, gin.H{
 		"groups": aG.Groups,
 		"users":  aU.Users,

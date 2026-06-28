@@ -68,8 +68,7 @@ type ChangeCurInfoForm struct {
 }
 
 type GroupUsersQuery struct {
-	IsMy   int  `json:"is_my"`
-	UserId uint `json:"user_id"`
+	GroupId uint `json:"group_id"`
 }
 
 type RegisterForm struct {
