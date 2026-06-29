@@ -185,3 +185,33 @@ func (ct *Tag) Delete(c *gin.Context) {
 	}
 	response.Fail(c, 101, err.Error())
 }
+
+// BatchDelete 批量删除
+// @Tags 标签
+// @Summary 标签批量删除
+// @Description 标签批量删除
+// @Accept  json
+// @Produce  json
+// @Param body body admin.TagBatchDeleteForm true "标签ID"
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/tag/batchDelete [post]
+// @Security token
+func (ct *Tag) BatchDelete(c *gin.Context) {
+	f := &admin.TagBatchDeleteForm{}
+	if err := c.ShouldBindJSON(f); err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+err.Error())
+		return
+	}
+	errList := global.Validator.ValidStruct(c, f)
+	if len(errList) > 0 {
+		response.Fail(c, 101, errList[0])
+		return
+	}
+	err := service.AllService.TagService.BatchDelete(f.Ids)
+	if err != nil {
+		response.Fail(c, 101, err.Error())
+		return
+	}
+	response.Success(c, nil)
+}

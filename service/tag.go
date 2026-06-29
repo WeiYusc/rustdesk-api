@@ -112,6 +112,9 @@ func (s *TagService) Create(u *model.Tag) error {
 func (s *TagService) Delete(u *model.Tag) error {
 	return DB.Delete(u).Error
 }
+func (s *TagService) BatchDelete(ids []uint) error {
+	return DB.Where("id in ?", ids).Delete(&model.Tag{}).Error
+}
 
 // Update 更新
 func (s *TagService) Update(u *model.Tag) error {

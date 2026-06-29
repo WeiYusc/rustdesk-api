@@ -90,6 +90,7 @@ func setupAdminTagFixture(t *testing.T) adminTagFixture {
 	tagGroup.POST("/create", controller.Create)
 	tagGroup.POST("/update", controller.Update)
 	tagGroup.POST("/delete", controller.Delete)
+	tagGroup.POST("/batchDelete", controller.BatchDelete)
 
 	return adminTagFixture{
 		db:            db,
@@ -270,6 +271,26 @@ func TestAdminTagCreateDetailUpdateAndDeleteSelectedOnly(t *testing.T) {
 	assertAdminTagResponseCode(t, deleteResponse.Body.Bytes(), 0)
 	assertAdminTagRowCount(t, fixture.db, "id = ?", []any{fixture.tags[0].Id}, 0)
 	assertAdminTagRowCount(t, fixture.db, "id = ?", []any{fixture.tags[1].Id}, 1)
+}
+
+func TestAdminTagBatchDeleteRemovesSelectedRows(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fixture := setupAdminTagFixture(t)
+
+	batchDelete := adminTagRequest(fixture.router, http.MethodPost, "/api/admin/tag/batchDelete", `{"ids":[`+strconv.FormatUint(uint64(fixture.tags[0].Id), 10)+`,`+strconv.FormatUint(uint64(fixture.tags[2].Id), 10)+`]}`, fixture.adminToken)
+	if batchDelete.Code != http.StatusOK {
+		t.Fatalf("batch delete status = %d, want %d; body=%q", batchDelete.Code, http.StatusOK, batchDelete.Body.String())
+	}
+	assertAdminTagResponseCode(t, batchDelete.Body.Bytes(), 0)
+	assertAdminTagRowCount(t, fixture.db, "id = ?", []any{fixture.tags[0].Id}, 0)
+	assertAdminTagRowCount(t, fixture.db, "id = ?", []any{fixture.tags[1].Id}, 1)
+	assertAdminTagRowCount(t, fixture.db, "id = ?", []any{fixture.tags[2].Id}, 0)
+
+	emptyIds := adminTagRequest(fixture.router, http.MethodPost, "/api/admin/tag/batchDelete", `{"ids":[]}`, fixture.adminToken)
+	if emptyIds.Code != http.StatusOK {
+		t.Fatalf("empty ids status = %d, want %d; body=%q", emptyIds.Code, http.StatusOK, emptyIds.Body.String())
+	}
+	assertAdminTagResponseCode(t, emptyIds.Body.Bytes(), 101)
 }
 
 func TestAdminTagCreateAcceptsColorZero(t *testing.T) {

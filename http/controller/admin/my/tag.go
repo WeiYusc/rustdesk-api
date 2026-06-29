@@ -5,6 +5,7 @@ import (
 	"github.com/lejianwen/rustdesk-api/v2/global"
 	"github.com/lejianwen/rustdesk-api/v2/http/request/admin"
 	"github.com/lejianwen/rustdesk-api/v2/http/response"
+	"github.com/lejianwen/rustdesk-api/v2/model"
 	"github.com/lejianwen/rustdesk-api/v2/service"
 	"gorm.io/gorm"
 )
@@ -173,4 +174,44 @@ func (ct *Tag) Delete(c *gin.Context) {
 	}
 	response.Fail(c, 101, err.Error())
 	return
+}
+
+// BatchDelete 批量删除我的标签
+// @Tags 我的标签
+// @Summary 标签批量删除
+// @Description 标签批量删除
+// @Accept  json
+// @Produce  json
+// @Param body body admin.TagBatchDeleteForm true "标签ID"
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/my/tag/batchDelete [post]
+// @Security token
+func (ct *Tag) BatchDelete(c *gin.Context) {
+	f := &admin.TagBatchDeleteForm{}
+	if err := c.ShouldBindJSON(f); err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+err.Error())
+		return
+	}
+	errList := global.Validator.ValidStruct(c, f)
+	if len(errList) > 0 {
+		response.Fail(c, 101, errList[0])
+		return
+	}
+	u := service.AllService.UserService.CurUser(c)
+	var count int64
+	if err := service.DB.Model(&model.Tag{}).Where("user_id = ? and id in ?", u.Id, f.Ids).Count(&count).Error; err != nil {
+		response.Fail(c, 101, err.Error())
+		return
+	}
+	if count != int64(len(f.Ids)) {
+		response.Fail(c, 101, response.TranslateMsg(c, "NoAccess"))
+		return
+	}
+	err := service.DB.Where("user_id = ? and id in ?", u.Id, f.Ids).Delete(&model.Tag{}).Error
+	if err != nil {
+		response.Fail(c, 101, err.Error())
+		return
+	}
+	response.Success(c, nil)
 }

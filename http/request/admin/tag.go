@@ -31,6 +31,10 @@ func (f *TagForm) ToTag() *model.Tag {
 	return i
 }
 
+type TagBatchDeleteForm struct {
+	Ids []uint `json:"ids" validate:"required,gt=0,dive,gt=0"`
+}
+
 type TagQuery struct {
 	UserId       int  `form:"user_id"`
 	IsMy         int  `form:"is_my"`

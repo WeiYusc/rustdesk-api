@@ -129,6 +129,7 @@ func TagBind(rg *gin.RouterGroup) {
 		aR.POST("/create", cont.Create)
 		aR.POST("/update", cont.Update)
 		aR.POST("/delete", cont.Delete)
+		aR.POST("/batchDelete", cont.BatchDelete)
 	}
 }
 
@@ -283,6 +284,7 @@ func MyBind(rg *gin.RouterGroup) {
 		rg.POST("/my/tag/create", cont.Create)
 		rg.POST("/my/tag/update", cont.Update)
 		rg.POST("/my/tag/delete", cont.Delete)
+		rg.POST("/my/tag/batchDelete", cont.BatchDelete)
 	}
 
 	{
