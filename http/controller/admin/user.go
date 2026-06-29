@@ -291,7 +291,7 @@ func (ct *User) ChangeCurInfo(c *gin.Context) {
 		return
 	}
 	u := service.AllService.UserService.CurUser(c)
-	err := service.AllService.UserService.UpdateCurrentInfo(u, f.Nickname, f.Avatar)
+	err := service.AllService.UserService.UpdateCurrentInfo(u, f.Nickname, f.Avatar, f.Email)
 	if err != nil {
 		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
 		return

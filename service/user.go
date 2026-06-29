@@ -323,10 +323,11 @@ func (us *UserService) UpdatePassword(u *model.User, password string) error {
 	return err
 }
 
-func (us *UserService) UpdateCurrentInfo(u *model.User, nickname string, avatar string) error {
+func (us *UserService) UpdateCurrentInfo(u *model.User, nickname string, avatar string, email string) error {
 	return DB.Model(u).Updates(map[string]interface{}{
 		"nickname": nickname,
 		"avatar":   avatar,
+		"email":    email,
 	}).Error
 }
 

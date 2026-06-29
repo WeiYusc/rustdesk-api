@@ -261,7 +261,7 @@ func TestAdminUserChangeCurInfoUpdatesOnlyCurrentUser(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	fixture := setupAdminUserFixture(t)
 
-	response := adminUserRequest(fixture.router, http.MethodPost, "/api/admin/user/changeCurInfo", `{"nickname":"Updated User","avatar":"https://example.test/avatar.png"}`, fixture.nonAdminToken)
+	response := adminUserRequest(fixture.router, http.MethodPost, "/api/admin/user/changeCurInfo", `{"nickname":"Updated User","avatar":"https://example.test/avatar.png","email":"updated@example.test"}`, fixture.nonAdminToken)
 	if response.Code != http.StatusOK {
 		t.Fatalf("changeCurInfo status = %d, want %d; body=%q", response.Code, http.StatusOK, response.Body.String())
 	}
@@ -271,8 +271,8 @@ func TestAdminUserChangeCurInfoUpdatesOnlyCurrentUser(t *testing.T) {
 	if err := fixture.db.First(&updated, fixture.nonAdminUser.Id).Error; err != nil {
 		t.Fatalf("query updated current user: %v", err)
 	}
-	if updated.Nickname != "Updated User" || updated.Avatar != "https://example.test/avatar.png" {
-		t.Fatalf("updated current user nickname/avatar = %q/%q", updated.Nickname, updated.Avatar)
+	if updated.Nickname != "Updated User" || updated.Avatar != "https://example.test/avatar.png" || updated.Email != "updated@example.test" {
+		t.Fatalf("updated current user nickname/avatar/email = %q/%q/%q", updated.Nickname, updated.Avatar, updated.Email)
 	}
 
 	var adminUser model.User

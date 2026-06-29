@@ -1,13 +1,20 @@
 package admin
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/lejianwen/rustdesk-api/v2/global"
 	"github.com/lejianwen/rustdesk-api/v2/http/response"
 	"github.com/lejianwen/rustdesk-api/v2/lib/upload"
-	"os"
-	"time"
 )
 
 type File struct {
@@ -62,22 +69,79 @@ func (f *File) Notify(c *gin.Context) {
 // @Router /admin/file/upload [post]
 // @Security token
 func (f *File) Upload(c *gin.Context) {
-	file, _ := c.FormFile("file")
+	file, err := c.FormFile("file")
+	if err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+err.Error())
+		return
+	}
+	if file.Size <= 0 || file.Size > 2*1024*1024 {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError"))
+		return
+	}
+	if filepath.Base(file.Filename) != file.Filename || strings.Contains(file.Filename, "..") || strings.ContainsAny(file.Filename, `/\\`) {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError"))
+		return
+	}
+	src, err := file.Open()
+	if err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
+		return
+	}
+	defer src.Close()
+	buffer := make([]byte, 512)
+	n, err := io.ReadFull(src, buffer)
+	if err != nil && err != io.ErrUnexpectedEOF {
+		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
+		return
+	}
+	mimeType := http.DetectContentType(buffer[:n])
+	extByMime := map[string]string{
+		"image/jpeg": ".jpg",
+		"image/png":  ".png",
+		"image/webp": ".webp",
+	}
+	ext, ok := extByMime[mimeType]
+	if !ok {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError"))
+		return
+	}
+	if _, err := src.Seek(0, io.SeekStart); err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
+		return
+	}
 	timePath := time.Now().Format("20060102") + "/"
-	webPath := "/upload/" + timePath
-	path := global.Config.Gin.ResourcesPath + webPath
-	dst := path + file.Filename
-	err := os.MkdirAll(path, os.ModePerm)
-	if err != nil {
+	webPath := "/upload/avatar/" + timePath
+	path := filepath.Join(global.Config.Gin.ResourcesPath, "public", "upload", "avatar", time.Now().Format("20060102"))
+	if err := os.MkdirAll(path, 0755); err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
 		return
 	}
-	// 上传文件至指定目录
-	err = c.SaveUploadedFile(file, dst)
+	randomName, err := randomHex(16)
 	if err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
 		return
 	}
-	// 返回文件web地址
+	filename := randomName + ext
+	dst := filepath.Join(path, filename)
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
+		return
+	}
+	defer out.Close()
+	if _, err := io.Copy(out, src); err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
+		return
+	}
 	response.Success(c, gin.H{
-		"url": webPath + file.Filename,
+		"url": webPath + filename,
 	})
+}
+
+func randomHex(size int) (string, error) {
+	buf := make([]byte, size)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(buf), nil
 }

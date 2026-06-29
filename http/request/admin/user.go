@@ -65,6 +65,7 @@ type ChangeCurPasswordForm struct {
 type ChangeCurInfoForm struct {
 	Nickname string `json:"nickname" validate:"lte=64"`
 	Avatar   string `json:"avatar" validate:"lte=512"`
+	Email    string `json:"email" validate:"omitempty,email,lte=128"`
 }
 
 type GroupUsersQuery struct {

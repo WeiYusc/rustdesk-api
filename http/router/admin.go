@@ -27,7 +27,7 @@ func Init(g *gin.Engine) {
 
 	adg.Use(middleware.BackendUserAuth())
 	adg.POST("/logout", (&admin.Login{}).Logout)
-	//FileBind(adg)
+	FileBind(adg)
 	UserBind(adg)
 	GroupBind(adg)
 	TagBind(adg)
@@ -247,9 +247,8 @@ func ConfigBind(rg *gin.RouterGroup) {
 
 }
 
-/*
 func FileBind(rg *gin.RouterGroup) {
-	aR := rg.Group("/file")
+	aR := rg.Group("/file").Use(middleware.BackendUserAuth())
 	{
 		cont := &admin.File{}
 		aR.POST("/notify", cont.Notify)
@@ -258,7 +257,7 @@ func FileBind(rg *gin.RouterGroup) {
 		aR.GET("/oss_token", cont.OssToken)
 		aR.POST("/upload", cont.Upload)
 	}
-}*/
+}
 
 func MyBind(rg *gin.RouterGroup) {
 	{
