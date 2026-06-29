@@ -194,6 +194,18 @@ func TestAdminTagCreateDetailUpdateAndDeleteSelectedOnly(t *testing.T) {
 	}
 	assertAdminTagResponseCode(t, missingUser.Body.Bytes(), 101)
 
+	missingColor := adminTagRequest(fixture.router, http.MethodPost, "/api/admin/tag/create", `{"name":"missing-color","user_id":`+strconv.FormatUint(uint64(fixture.owner.Id), 10)+`}`, fixture.adminToken)
+	if missingColor.Code != http.StatusOK {
+		t.Fatalf("missing-color status = %d, want %d; body=%q", missingColor.Code, http.StatusOK, missingColor.Body.String())
+	}
+	assertAdminTagResponseCode(t, missingColor.Body.Bytes(), 101)
+
+	nullColor := adminTagRequest(fixture.router, http.MethodPost, "/api/admin/tag/create", `{"name":"null-color","color":null,"user_id":`+strconv.FormatUint(uint64(fixture.owner.Id), 10)+`}`, fixture.adminToken)
+	if nullColor.Code != http.StatusOK {
+		t.Fatalf("null-color status = %d, want %d; body=%q", nullColor.Code, http.StatusOK, nullColor.Body.String())
+	}
+	assertAdminTagResponseCode(t, nullColor.Body.Bytes(), 101)
+
 	create := adminTagRequest(fixture.router, http.MethodPost, "/api/admin/tag/create", `{"name":"created-tag","color":4289379276,"user_id":`+strconv.FormatUint(uint64(fixture.owner.Id), 10)+`,"collection_id":`+strconv.FormatUint(uint64(fixture.collections[0].Id), 10)+`}`, fixture.adminToken)
 	if create.Code != http.StatusOK {
 		t.Fatalf("create status = %d, want %d; body=%q", create.Code, http.StatusOK, create.Body.String())
@@ -238,6 +250,19 @@ func TestAdminTagCreateDetailUpdateAndDeleteSelectedOnly(t *testing.T) {
 		t.Fatalf("updated tag = %#v", updated)
 	}
 
+	updateZero := adminTagRequest(fixture.router, http.MethodPost, "/api/admin/tag/update", `{"id":`+strconv.FormatUint(uint64(created.Id), 10)+`,"name":"zero-updated-tag","color":0,"user_id":`+strconv.FormatUint(uint64(fixture.owner.Id), 10)+`,"collection_id":`+strconv.FormatUint(uint64(fixture.collections[1].Id), 10)+`}`, fixture.adminToken)
+	if updateZero.Code != http.StatusOK {
+		t.Fatalf("update-zero status = %d, want %d; body=%q", updateZero.Code, http.StatusOK, updateZero.Body.String())
+	}
+	assertAdminTagResponseCode(t, updateZero.Body.Bytes(), 0)
+	var zeroUpdated model.Tag
+	if err := fixture.db.Where("id = ?", created.Id).First(&zeroUpdated).Error; err != nil {
+		t.Fatalf("find zero-updated tag: %v", err)
+	}
+	if zeroUpdated.Name != "zero-updated-tag" || zeroUpdated.Color != 0 || zeroUpdated.UserId != fixture.owner.Id || zeroUpdated.CollectionId != fixture.collections[1].Id {
+		t.Fatalf("zero-updated tag = %#v", zeroUpdated)
+	}
+
 	deleteResponse := adminTagRequest(fixture.router, http.MethodPost, "/api/admin/tag/delete", `{"id":`+strconv.FormatUint(uint64(fixture.tags[0].Id), 10)+`,"name":"owner-red","color":4278190080}`, fixture.adminToken)
 	if deleteResponse.Code != http.StatusOK {
 		t.Fatalf("delete status = %d, want %d; body=%q", deleteResponse.Code, http.StatusOK, deleteResponse.Body.String())
@@ -245,6 +270,25 @@ func TestAdminTagCreateDetailUpdateAndDeleteSelectedOnly(t *testing.T) {
 	assertAdminTagResponseCode(t, deleteResponse.Body.Bytes(), 0)
 	assertAdminTagRowCount(t, fixture.db, "id = ?", []any{fixture.tags[0].Id}, 0)
 	assertAdminTagRowCount(t, fixture.db, "id = ?", []any{fixture.tags[1].Id}, 1)
+}
+
+func TestAdminTagCreateAcceptsColorZero(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fixture := setupAdminTagFixture(t)
+
+	create := adminTagRequest(fixture.router, http.MethodPost, "/api/admin/tag/create", `{"name":"zero-color-tag","color":0,"user_id":`+strconv.FormatUint(uint64(fixture.owner.Id), 10)+`}`, fixture.adminToken)
+	if create.Code != http.StatusOK {
+		t.Fatalf("create status = %d, want %d; body=%q", create.Code, http.StatusOK, create.Body.String())
+	}
+	assertAdminTagResponseCode(t, create.Body.Bytes(), 0)
+
+	var created model.Tag
+	if err := fixture.db.Where("user_id = ? and name = ?", fixture.owner.Id, "zero-color-tag").First(&created).Error; err != nil {
+		t.Fatalf("find zero-color tag: %v", err)
+	}
+	if created.Color != 0 {
+		t.Fatalf("created color = %d, want 0", created.Color)
+	}
 }
 
 func assertAdminTagResponseCode(t *testing.T, body []byte, want int) {
