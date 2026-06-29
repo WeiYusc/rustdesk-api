@@ -23,6 +23,7 @@ type App struct {
 	DisablePwdLogin  bool          `mapstructure:"disable-pwd-login"`
 	CaptchaThreshold int           `mapstructure:"captcha-threshold"`
 	BanThreshold     int           `mapstructure:"ban-threshold"`
+	UploadMaxSizeMb  int64         `mapstructure:"upload-max-size-mb"`
 }
 type Admin struct {
 	Title           string `mapstructure:"title"`
@@ -55,6 +56,12 @@ func (a *Admin) Init() {
 	}
 	if a.RelayServerPort == 0 {
 		a.RelayServerPort = DefaultRelayServerPort
+	}
+}
+
+func (a *App) Init() {
+	if a.UploadMaxSizeMb <= 0 {
+		a.UploadMaxSizeMb = 10
 	}
 }
 
@@ -92,6 +99,7 @@ func Init(rowVal *Config, path string) *viper.Viper {
 		panic(fmt.Errorf("Fatal error config: %s \n", err))
 	}
 	rowVal.Rustdesk.LoadKeyFile()
+	rowVal.App.Init()
 	rowVal.Admin.Init()
 	return v
 }

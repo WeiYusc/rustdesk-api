@@ -40,6 +40,8 @@ type FileBack struct {
 	Url string `json:"url"`
 }
 
+const bytesPerMegabyte = 1024 * 1024
+
 // Notify 上传成功后回调
 func (f *File) Notify(c *gin.Context) {
 
@@ -74,7 +76,7 @@ func (f *File) Upload(c *gin.Context) {
 		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+err.Error())
 		return
 	}
-	if file.Size <= 0 || file.Size > 2*1024*1024 {
+	if file.Size <= 0 || file.Size > uploadMaxBytes() {
 		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError"))
 		return
 	}
@@ -136,6 +138,14 @@ func (f *File) Upload(c *gin.Context) {
 	response.Success(c, gin.H{
 		"url": webPath + filename,
 	})
+}
+
+func uploadMaxBytes() int64 {
+	maxSizeMb := global.Config.App.UploadMaxSizeMb
+	if maxSizeMb <= 0 {
+		maxSizeMb = 10
+	}
+	return maxSizeMb * bytesPerMegabyte
 }
 
 func randomHex(size int) (string, error) {

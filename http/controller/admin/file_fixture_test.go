@@ -64,6 +64,26 @@ func TestAdminFileUploadStoresOnlySafeImages(t *testing.T) {
 	assertAdminFileResponseCode(t, pathTraversal.Body.Bytes(), 101)
 }
 
+func TestAdminFileUploadUsesConfigurableMaxSize(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	resourcesPath := t.TempDir()
+	router := setupAdminFileFixture(t, resourcesPath)
+	global.Config.App.UploadMaxSizeMb = 10
+
+	largePNG := encodeSolidPNG(t, 1400, 1400)
+	if int64(len(largePNG)) <= 2*1024*1024 || int64(len(largePNG)) >= 10*1024*1024 {
+		t.Fatalf("large png size = %d, want between 2MB and 10MB", len(largePNG))
+	}
+	accepted := adminFileUploadRequest(t, router, "large.png", "image/png", largePNG, "file-token")
+	if accepted.Code != http.StatusOK {
+		t.Fatalf("upload status = %d, want %d; body=%q", accepted.Code, http.StatusOK, accepted.Body.String())
+	}
+
+	global.Config.App.UploadMaxSizeMb = 1
+	rejected := adminFileUploadRequest(t, router, "too-large.png", "image/png", largePNG, "file-token")
+	assertAdminFileResponseCode(t, rejected.Body.Bytes(), 101)
+}
+
 func setupAdminFileFixture(t *testing.T, resourcesPath string) *gin.Engine {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -74,6 +94,7 @@ func setupAdminFileFixture(t *testing.T, resourcesPath string) *gin.Engine {
 		t.Fatalf("migrate: %v", err)
 	}
 	global.Config = config.Config{Lang: "en"}
+	global.Config.App.Init()
 	global.Config.Gin.ResourcesPath = resourcesPath
 	global.Logger = logrus.New()
 	global.Localizer = func(lang string) *i18n.Localizer { return i18n.NewLocalizer(i18n.NewBundle(language.English)) }
@@ -126,6 +147,24 @@ func encodeTinyPNG(t *testing.T) []byte {
 	t.Helper()
 	img := image.NewRGBA(image.Rect(0, 0, 2, 2))
 	img.Set(0, 0, color.RGBA{R: 255, A: 255})
+	return encodePNG(t, img)
+}
+
+func encodeSolidPNG(t *testing.T, width int, height int) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	var value uint32 = 1
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			value = value*1664525 + 1013904223
+			img.Set(x, y, color.RGBA{R: uint8(value >> 16), G: uint8(value >> 8), B: uint8(value), A: 255})
+		}
+	}
+	return encodePNG(t, img)
+}
+
+func encodePNG(t *testing.T, img image.Image) []byte {
+	t.Helper()
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, img); err != nil {
 		t.Fatalf("encode png: %v", err)

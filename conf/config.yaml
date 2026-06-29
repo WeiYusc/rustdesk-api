@@ -9,6 +9,7 @@ app:
   token-expire: 168h
   web-sso: true #web auth sso
   disable-pwd-login: false #禁用密码登录
+  upload-max-size-mb: 10 #本地上传文件最大大小，单位 MB
 
 admin:
   title: "API"
