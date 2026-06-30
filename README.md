@@ -1,336 +1,215 @@
-# RustDesk API
+# RustDesk API / RustDesk API 服务
 
-[English Doc](README_EN.md)
+[中文](#中文) · [English](#english)
 
-本项目使用 Go 实现了 RustDesk 的 API，并包含了 Web Admin 和 Web 客户端。
+## 中文
 
-> 当前 fork 兼容性说明：本地验证范围以 linux/amd64 API 服务为主；当前源码快照未内置 `resources/admin` 或 `resources/web` 静态构建产物，`/_admin/` 和 `/webclient/` 在未补充前端资源时会返回 404。详见 [当前 fork 运维边界](./docs/current-fork-operations.md) 和 [兼容性矩阵](./compatibility.md)。
+`WeiYusc/rustdesk-api` 是 RustDesk 自托管管理栈的 API 服务，提供账号、地址簿、设备、审计、OAuth/LDAP、管理后台 API 和 RustDesk 客户端所需接口。
 
+### 三仓库架构
 
-<div align=center>
-<img src="https://img.shields.io/badge/golang-1.22-blue"/>
-<img src="https://img.shields.io/badge/gin-v1.9.0-lightBlue"/>
-<img src="https://img.shields.io/badge/gorm-v1.25.7-green"/>
-<img src="https://img.shields.io/badge/swag-v1.16.3-yellow"/>
-<img src="https://goreportcard.com/badge/github.com/lejianwen/rustdesk-api/v2"/>
-<img src="https://github.com/lejianwen/rustdesk-api/actions/workflows/build.yml/badge.svg"/>
-</div>
+| 仓库 | 作用 |
+| --- | --- |
+| `WeiYusc/rustdesk-api` | API 服务、账号体系、地址簿、审计和管理接口 |
+| `WeiYusc/rustdesk-api-web` | Web Admin 前端，构建后放入 `resources/admin` |
+| `WeiYusc/rustdesk-server` | `hbbs` / `hbbr` 服务端；full-s6 集成镜像构建入口 |
 
-## 搭配 `WeiYusc/rustdesk-server` 使用
-> 当前现代化目标以 `WeiYusc/rustdesk-server` 为 server 侧集成仓库，并已本机验证 full-s6 集成镜像 MVP。
-> 旧 `lejianwen/rustdesk-server` 仍可作为 API/JWT/MUST_LOGIN 行为历史参考，但不再作为本 fork 的已验证发布目标。
+当前 API 源码包本身不跟踪构建后的 `resources/admin` 或 `resources/web` 静态资源。单独运行本仓库时，除非你手动构建并复制前端产物，否则 `/_admin/` 不会开箱即用。server 仓库的 full-s6 构建会自动构建并注入 Web Admin。
 
+### 主要功能
 
+- RustDesk 客户端 API：登录、设备信息、心跳、地址簿、分组等。
+- Web Admin API：用户、设备、地址簿、标签、群组、OAuth、登录日志、连接/文件审计、服务端命令。
+- 认证与账号：本地账号、OIDC/GitHub/Google OAuth、LDAP/AD。
+- CLI：重置管理员密码。
+- SQLite 默认运行；也支持 MySQL 等配置项。
 
-# 特性
+> WebClient 说明：当前源码快照不包含 `resources/web`，不要把 `/webclient/` 或 `/webclient2` 作为已恢复/已发布功能来宣传。恢复 WebClient 前需要单独完成来源、许可证和合规审查。
 
-- PC端API
-    - 个人版API
-    - 登录
-    - 地址簿
-    - 群组
-    - 授权登录
-      - 支持`github`, `google` 和 `OIDC` 登录，
-      - 支持`web后台`授权登录
-      - 支持`LDAP`(AD和OpenLDAP已测试), 如果API Server配置了LDAP
-    - i18n
-- Web Admin
-    - 用户管理
-    - 设备管理
-    - 地址簿管理
-    - 标签管理
-    - 群组管理
-    - Oauth 管理
-    - 配置LDAP, 配置文件或者环境变量
-    - 登录日志
-    - 链接日志
-    - 文件传输日志
-    - 快速使用web client
-    - i18n
-    - 通过 web client 分享给游客
-    - server控制(一些官方的简单的指令 [WIKI](https://github.com/lejianwen/rustdesk-api/wiki/Rustdesk-Command))
-- Web Client
-    - 自动获取API server
-    - 自动获取ID服务器和KEY
-    - 自动获取地址簿
-    - 游客通过临时分享链接直接远程到设备
-    - v2 Preview
-- CLI
-    - 重置管理员密码
+### 配置
 
-## 功能
+主要配置文件：[`conf/config.yaml`](conf/config.yaml)。环境变量前缀为 `RUSTDESK_API_`，例如：
 
+| 变量 | 说明 | 示例 |
+| --- | --- | --- |
+| `RUSTDESK_API_LANG` | API/Web Admin 语言 | `zh-CN` / `en` |
+| `RUSTDESK_API_GORM_TYPE` | 数据库类型 | `sqlite` |
+| `RUSTDESK_API_RUSTDESK_ID_SERVER` | RustDesk ID server | `id.example.com:21116` |
+| `RUSTDESK_API_RUSTDESK_RELAY_SERVER` | RustDesk relay server | `relay.example.com:21117` |
+| `RUSTDESK_API_RUSTDESK_API_SERVER` | API 对外地址 | `https://api.example.com` |
+| `RUSTDESK_API_RUSTDESK_KEY_FILE` | server 公钥文件 | `/data/id_ed25519.pub` |
+| `RUSTDESK_API_JWT_KEY` | 与 server forced-login 共享的 JWT 密钥 | 生成的长随机字符串 |
 
-### API 服务 
-基本实现了PC端基础的接口。支持Personal版本接口，可以通过配置文件`rustdesk.personal`或环境变量`RUSTDESK_API_RUSTDESK_PERSONAL`来控制是否启用
+### Docker 运行 API（单独 API 服务）
 
-<table>
-    <tr>
-      <td width="50%" align="center" colspan="2"><b>登录</b></td>
-    </tr>
-    <tr>
-        <td width="50%" align="center" colspan="2"><img src="docs/pc_login.png"></td>
-    </tr>
-     <tr>
-      <td width="50%" align="center"><b>地址簿</b></td>
-      <td width="50%" align="center"><b>群组</b></td>
-    </tr>
-    <tr>
-        <td width="50%" align="center"><img src="docs/pc_ab.png"></td>
-        <td width="50%" align="center"><img src="docs/pc_gr.png"></td>
-    </tr>
-</table>
+```bash
+docker run -d \
+  --name rustdesk-api \
+  -p 21114:21114 \
+  -v rustdesk-api-data:/app/data \
+  -e TZ=Asia/Shanghai \
+  -e RUSTDESK_API_LANG=zh-CN \
+  -e RUSTDESK_API_RUSTDESK_ID_SERVER=id.example.com:21116 \
+  -e RUSTDESK_API_RUSTDESK_RELAY_SERVER=relay.example.com:21117 \
+  -e RUSTDESK_API_RUSTDESK_API_SERVER=https://api.example.com \
+  -e RUSTDESK_API_RUSTDESK_KEY_FILE=/app/data/id_ed25519.pub \
+  rustdesk-api:local
+```
 
-### Web Admin:
+镜像名请替换为你实际构建或发布的 API 镜像。首次启动会创建 `admin` 用户并在日志中打印随机初始密码；请安全保存或使用 CLI 重置。
 
-* 使用前后端分离，提供用户友好的管理界面，主要用来管理和展示。前端代码在[rustdesk-api-web](https://github.com/lejianwen/rustdesk-api-web)
+### 构建 Web Admin 并注入 API
 
-* 后台访问地址是`http://<your server>[:port]/_admin/`
-* 初次安装管理员为用户名为`admin`，密码将在控制台打印，可以通过[命令行](#CLI)更改密码
+```bash
+cd /path/to/rustdesk-api-web
+pnpm install --frozen-lockfile
+pnpm build
 
-  ![img.png](./docs/init_admin_pwd.png)
+mkdir -p /path/to/rustdesk-api/resources/admin
+cp -a dist/. /path/to/rustdesk-api/resources/admin/
+```
 
-1. 管理员界面
-   ![web_admin](docs/web_admin.png)
-2. 普通用户界面
-   ![web_user](docs/web_admin_user.png)
+之后 API 会通过 `/_admin/` 提供 Web Admin。
 
-3. 每个用户可以多个地址簿，也可以将地址簿共享给其他用户
-4. 分组可以自定义，方便管理，暂时支持两种类型: `共享组` 和 `普通组`
-5. Oauth,支持了`Github`, `Google` 以及 `OIDC`, 需要创建一个`OAuth App`，然后配置到后台
-    - 对于`Google` 和 `Github`, `Issuer` 和 `Scopes`不需要填写.
-    - 对于`OIDC`, `Issuer`是必须的。`Scopes`是可选的，默认为 `openid,profile,email`. 确保可以获取 `sub`,`email` 和`preferred_username`
-    - `github oauth app`在`Settings`->`Developer settings`->`OAuth Apps`->`New OAuth App`
-      中创建,地址 [https://github.com/settings/developers](https://github.com/settings/developers)
-    - `Authorization callback URL`填写`http://<your server[:port]>/api/oidc/callback`
-      ，比如`http://127.0.0.1:21114/api/oidc/callback`
-6. 登录日志
-7. 链接日志
-8. 文件传输日志
-9. server控制
+### full-s6 集成部署（保留方案）
 
-  - `简易模式`,已经界面化了一些简单的指令，可以直接在后台执行
-    ![rustdesk_command_simple](./docs/rustdesk_command_simple.png)
+完整单容器集成部署由 `WeiYusc/rustdesk-server` 仓库构建：
 
-  - `高级模式`,直接在后台执行指令
-      * 可以官方指令
-      * 可以添加自定义指令
-      * 可以执行自定义指令
+```bash
+RUSTDESK_API_SOURCE_DIR=/path/to/rustdesk-api \
+RUSTDESK_API_WEB_SOURCE_DIR=/path/to/rustdesk-api-web \
+RUSTDESK_FULL_S6_IMAGE=rustdesk-server-full-s6:local \
+./scripts/build-full-s6-image.sh
+```
 
- 
-11. **LDAP 支持**, 当在API Server上设置了LDAP(已测试AD和LDAP),可以通过LDAP中的用户信息进行登录 https://github.com/lejianwen/rustdesk-api/issues/114 ,如果LDAP验证失败，返回本地用户
+当前状态：
 
-
-### 自动化文档: 使用 Swag 生成 API 文档，方便开发者理解和使用 API。
-
-1. 后台文档 `<youer server[:port]>/admin/swagger/index.html`
-2. PC端文档 `<youer server[:port]>/swagger/index.html`
-   ![api_swag](docs/api_swag.png)
+- 本地 full-s6 构建和 smoke 已通过。
+- 公共 Docker Hub/GHCR 镜像尚未发布。
+- 公开镜像完成前，文档中的 full-s6 运行方式仅作为“保留方案/本地构建方案”。
 
 ### CLI
 
 ```bash
-# 查看帮助
 ./apimain -h
+./apimain reset-admin-pwd <new-password>
 ```
 
-#### 重置管理员密码
+如果使用配置文件运行，请带上 `-c`：
+
 ```bash
-./apimain reset-admin-pwd <pwd>
+./apimain -c ./conf/config.yaml reset-admin-pwd <new-password>
 ```
 
-## 安装与运行
+### 验证边界
 
-### 相关配置
+已验证内容和未完成边界见：
 
-* [配置文件](./conf/config.yaml)
-* [当前 fork 运维边界](./docs/current-fork-operations.md)：记录本阶段已验证的 linux/amd64、SQLite、Docker/S6、静态资源和 `MUST_LOGIN` API 侧边界。
-* 参考`conf/config.yaml`配置文件，修改相关配置。
-* 如果`gorm.type`是`sqlite`，则不需要配置mysql相关配置。
-* 语言如果不设置默认为`zh-CN`
+- [docs/current-fork-operations.md](docs/current-fork-operations.md)
+- [compatibility.md](compatibility.md)
 
-### 环境变量
-环境变量和配置文件`conf/config.yaml`中的配置一一对应，变量名前缀是`RUSTDESK_API`
-下面表格并未全部列出，可以参考`conf/config.yaml`中的配置。
+## English
 
-| 变量名                                                    | 说明                                                                             | 示例                           |
-|--------------------------------------------------------|--------------------------------------------------------------------------------|------------------------------|
-| TZ                                                     | 时区                                                                             | Asia/Shanghai                |
-| RUSTDESK_API_LANG                                      | 语言                                                                             | `en`,`zh-CN`                 |
-| RUSTDESK_API_APP_WEB_CLIENT                            | 是否启用web-client; 1:启用,0:不启用; 默认启用                                               | 1                            |
-| RUSTDESK_API_APP_REGISTER                              | 是否开启注册; `true`, `false`  默认`false`                                             | `false`                      |
-| RUSTDESK_API_APP_SHOW_SWAGGER                          | 是否可见swagger文档;`1`显示，`0`不显示，默认`0`不显示                                            | `1`                          |
-| RUSTDESK_API_APP_TOKEN_EXPIRE                          | token有效时长                                                                      | `168h`                       |
-| RUSTDESK_API_APP_DISABLE_PWD_LOGIN                     | 是否禁用密码登录;  `true`, `false`  默认`false`                                          | `false`                      |
-| RUSTDESK_API_APP_REGISTER_STATUS                       | 注册用户默认状态; 1 启用，2 禁用, 默认 1                                                      | `1`                          |
-| RUSTDESK_API_APP_CAPTCHA_THRESHOLD                     | 验证码触发次数; -1 不启用， 0 一直启用， >0 登录错误次数后启用 ;默认 `3`                                  | `3`                          |
-| RUSTDESK_API_APP_BAN_THRESHOLD                         | 封禁IP触发次数; 0 不启用, >0 登录错误次数后封禁IP; 默认 `0`                                        | `0`                          |
-| -----ADMIN配置-----                                      | ----------                                                                     | ----------                   |
-| RUSTDESK_API_ADMIN_TITLE                               | 后台标题                                                                           | `RustDesk Api Admin`         |
-| RUSTDESK_API_ADMIN_HELLO                               | 后台欢迎语，可以使用`html`                                                               |                              |
-| RUSTDESK_API_ADMIN_HELLO_FILE                          | 后台欢迎语文件，如果内容多，使用文件更方便。<br>会覆盖`RUSTDESK_API_ADMIN_HELLO`                        | `./conf/admin/hello.html`    |
-| -----GIN配置-----                                        | ----------                                                                     | ----------                   |
-| RUSTDESK_API_GIN_TRUST_PROXY                           | 信任的代理IP列表，以`,`分割，默认信任所有                                                        | 192.168.1.2,192.168.1.3      |
-| -----GORM配置-----                                       | ----------                                                                     | ---------------------------  |
-| RUSTDESK_API_GORM_TYPE                                 | 数据库类型sqlite或者mysql，默认sqlite                                                    | sqlite                       |
-| RUSTDESK_API_GORM_MAX_IDLE_CONNS                       | 数据库最大空闲连接数                                                                     | 10                           |
-| RUSTDESK_API_GORM_MAX_OPEN_CONNS                       | 数据库最大打开连接数                                                                     | 100                          |
-| RUSTDESK_API_GORM_CONN_MAX_IDLE_TIME                   | MySQL 空闲连接最大保留时间，需小于服务端 `wait_timeout`，避免复用已失效连接                        | `1h`                         |
-| RUSTDESK_API_GORM_CONN_MAX_LIFETIME                    | MySQL 连接最大生命周期，默认低于 MySQL `wait_timeout`                                      | `7h30m`                      |
-| RUSTDESK_API_RUSTDESK_PERSONAL                         | 是否启用个人版API， 1:启用,0:不启用； 默认启用                                                   | 1                            |
-| -----MYSQL配置-----                                      | ----------                                                                     | ----------                   |
-| RUSTDESK_API_MYSQL_USERNAME                            | mysql用户名                                                                       | root                         |
-| RUSTDESK_API_MYSQL_PASSWORD                            | mysql密码                                                                        | 111111                       |
-| RUSTDESK_API_MYSQL_ADDR                                | mysql地址                                                                        | 192.168.1.66:3306            |
-| RUSTDESK_API_MYSQL_DBNAME                              | mysql数据库名                                                                      | rustdesk                     |
-| RUSTDESK_API_MYSQL_TLS                             | 是否启用TLS, 可选值: `true`, `false`, `skip-verify`, `custom` | `false`                      |
-| -----RUSTDESK配置-----                                   | ----------                                                                     | ----------                   |
-| RUSTDESK_API_RUSTDESK_ID_SERVER                        | Rustdesk的id服务器地址                                                               | 192.168.1.66:21116           |
-| RUSTDESK_API_RUSTDESK_RELAY_SERVER                     | Rustdesk的relay服务器地址                                                            | 192.168.1.66:21117           |
-| RUSTDESK_API_RUSTDESK_API_SERVER                       | Rustdesk的api服务器地址                                                              | http://192.168.1.66:21114    |
-| RUSTDESK_API_RUSTDESK_KEY                              | Rustdesk的key                                                                   | 123456789                    |
-| RUSTDESK_API_RUSTDESK_KEY_FILE                         | Rustdesk存放key的文件                                                               | `./conf/data/id_ed25519.pub` |
-| RUSTDESK_API_RUSTDESK_WEBCLIENT<br/>_MAGIC_QUERYONLINE | Web client v2 中是否启用新的在线状态查询方法; `1`:启用,`0`:不启用,默认不启用                            | `0`                          |
-| RUSTDESK_API_RUSTDESK_WS_HOST                          | 自定义Websocket Host                                                              | `wss://192.168.1.123:1234`   |
-| ----PROXY配置-----                                       | ----------                                                                     | ----------                   |
-| RUSTDESK_API_PROXY_ENABLE                              | 是否启用代理:`false`, `true`                                                         | `false`                      |
-| RUSTDESK_API_PROXY_HOST                                | 代理地址                                                                           | `http://127.0.0.1:1080`      |
-| ----JWT配置----                                          | --------                                                                       | --------                     |
-| RUSTDESK_API_JWT_KEY                                   | 自定义JWT KEY,为空则不启用JWT<br/>如果没使用`lejianwen/rustdesk-server`中的`MUST_LOGIN`，建议设置为空 |                              |
-| RUSTDESK_API_JWT_EXPIRE_DURATION                       | JWT有效时间                                                                        | `168h`                       |
+`WeiYusc/rustdesk-api` is the API service for a self-hosted RustDesk management stack. It provides accounts, address books, devices, audit logs, OAuth/LDAP, Web Admin APIs, and RustDesk client-facing endpoints.
 
+### Three-repository architecture
 
-### 运行
+| Repository | Role |
+| --- | --- |
+| `WeiYusc/rustdesk-api` | API service, accounts, address books, audit logs, admin endpoints |
+| `WeiYusc/rustdesk-api-web` | Web Admin frontend copied to `resources/admin` after build |
+| `WeiYusc/rustdesk-server` | `hbbs` / `hbbr` server and full-s6 image build entrypoint |
 
-#### docker运行
+This API source checkout does not track built `resources/admin` or `resources/web` static assets. When running this repository alone, `/_admin/` is not available until you build and copy the frontend assets yourself. The server repository full-s6 build can build and inject Web Admin automatically.
 
-1. 直接docker运行,配置可以通过挂载配置文件`/app/conf/config.yaml`来修改,或者通过环境变量覆盖配置文件中的配置
+### Main features
 
-    ```bash
-    docker run -d --name rustdesk-api -p 21114:21114 \
-    -v /data/rustdesk/api:/app/data \
-    -e TZ=Asia/Shanghai \
-    -e RUSTDESK_API_LANG=zh-CN \
-    -e RUSTDESK_API_RUSTDESK_ID_SERVER=192.168.1.66:21116 \
-    -e RUSTDESK_API_RUSTDESK_RELAY_SERVER=192.168.1.66:21117 \
-    -e RUSTDESK_API_RUSTDESK_API_SERVER=http://192.168.1.66:21114 \
-    -e RUSTDESK_API_RUSTDESK_KEY=<key> \
-    lejianwen/rustdesk-api
-    ```
+- RustDesk client API: login, sysinfo, heartbeat, address books, groups.
+- Web Admin API: users, devices, address books, tags, groups, OAuth, login logs, connection/file audit logs, server commands.
+- Authentication and accounts: local accounts, OIDC/GitHub/Google OAuth, LDAP/AD.
+- CLI: reset admin password.
+- SQLite by default; MySQL and other configuration options are available.
 
-2. 使用`docker compose`，参考[WIKI](https://github.com/lejianwen/rustdesk-api/wiki)
+> WebClient note: the current source snapshot does not include `resources/web`. Do not advertise `/webclient/` or `/webclient2` as restored/published features until source, license, and compliance review is completed.
 
-#### 下载release直接运行
+### Configuration
 
-[下载地址](https://github.com/lejianwen/rustdesk-api/releases)
+Main config file: [`conf/config.yaml`](conf/config.yaml). Environment variables use the `RUSTDESK_API_` prefix, for example:
 
-#### 源码安装
+| Variable | Description | Example |
+| --- | --- | --- |
+| `RUSTDESK_API_LANG` | API/Web Admin language | `zh-CN` / `en` |
+| `RUSTDESK_API_GORM_TYPE` | Database type | `sqlite` |
+| `RUSTDESK_API_RUSTDESK_ID_SERVER` | RustDesk ID server | `id.example.com:21116` |
+| `RUSTDESK_API_RUSTDESK_RELAY_SERVER` | RustDesk relay server | `relay.example.com:21117` |
+| `RUSTDESK_API_RUSTDESK_API_SERVER` | Public API URL | `https://api.example.com` |
+| `RUSTDESK_API_RUSTDESK_KEY_FILE` | Server public key file | `/data/id_ed25519.pub` |
+| `RUSTDESK_API_JWT_KEY` | JWT secret shared with forced-login server mode | long random string |
 
-1. 克隆仓库
-   ```bash
-   git clone https://github.com/lejianwen/rustdesk-api.git
-   cd rustdesk-api
-   ```
+### Run API with Docker only
 
-2. 安装依赖
-
-    ```bash
-    go mod tidy
-    #安装swag，如果不需要生成文档，可以不安装
-    go install github.com/swaggo/swag/cmd/swag@latest
-    ```
-
-3. 编译后台前端，前端代码在[rustdesk-api-web](https://github.com/lejianwen/rustdesk-api-web)中
-   ```bash
-   cd resources
-   mkdir -p admin
-   git clone https://github.com/lejianwen/rustdesk-api-web
-   cd rustdesk-api-web
-   npm install
-   npm run build
-   cp -ar dist/* ../admin/
-   ```
-4. 运行
-    ```bash
-    #直接运行
-    go run cmd/apimain.go
-    #或者使用generate_api.go生成api并运行
-    go generate generate_api.go
-    ```
-   > 注意：使用 `go run` 或编译后的二进制时，当前目录下必须存在 `conf` 和 `resources`
-   > 目录。如果在其他目录运行，可通过 `-c` 和环境变量
-   > `RUSTDESK_API_GIN_RESOURCES_PATH` 指定绝对路径，例如：
-   > ```bash
-   > RUSTDESK_API_GIN_RESOURCES_PATH=/opt/rustdesk-api/resources ./apimain -c /opt/rustdesk-api/conf/config.yaml
-   > ```
-5. 编译，如果想自己编译,先cd到项目根目录，然后windows下直接运行`build.bat`,linux下运行`build.sh`,编译后会在`release`
-   目录下生成对应的可执行文件。直接运行编译后的可执行文件即可。
-
-6. 打开浏览器访问`http://<your server[:port]>/_admin/`。初始管理员用户名为 `admin`，随机密码会打印在首次启动日志中；请及时通过后台或 `reset-admin-pwd` 修改密码。
-
-
-#### 使用 `WeiYusc/rustdesk-server` full-s6 集成镜像
-
-当前现代化分支已经在 `WeiYusc/rustdesk-server` 中新增并本机验证了 full-s6 集成镜像构建路径：
-
-- 镜像内集成 `hbbr`、`hbbs`、本 API 服务和 `rustdesk-api-web` 构建后的 Web Admin 静态资源。
-- 本机验证命令为 `scripts/build-full-s6-image.sh` 和 `scripts/smoke-full-s6-image.sh`，验证范围包括 s6 三服务、`/_admin/`、管理员登录和 `/api/admin/config/server`。
-- 该镜像目前只在本机构建为 `rustdesk-server-full-s6:local`，尚未发布到 Docker Hub/GHCR，因此不能直接 `docker pull`。
-- 真实双客户端强制登录/连接流程仍是后续生产验收项，不能仅凭该镜像 smoke 声称完整客户端兼容。
-
-本机运行示例（需先在 `WeiYusc/rustdesk-server` 仓库构建镜像）：
-
-```yaml
-networks:
-  rustdesk-net:
-    external: false
-services:
-  rustdesk:
-    image: rustdesk-server-full-s6:local
-    ports:
-      - 21114:21114
-      - 21115:21115
-      - 21116:21116
-      - 21116:21116/udp
-      - 21117:21117
-      - 21118:21118
-      - 21119:21119
-    environment:
-      - RELAY=<relay_server[:port]>
-      - ENCRYPTED_ONLY=1
-      - MUST_LOGIN=N
-      - TZ=Asia/Shanghai
-      - RUSTDESK_API_RUSTDESK_ID_SERVER=<id_server[:21116]>
-      - RUSTDESK_API_RUSTDESK_RELAY_SERVER=<relay_server[:21117]>
-      - RUSTDESK_API_RUSTDESK_API_SERVER=http://<api_server[:21114]>
-      - RUSTDESK_API_RUSTDESK_KEY_FILE=/data/id_ed25519.pub
-      - RUSTDESK_API_JWT_KEY=<jwt-key>
-    volumes:
-      - /data/rustdesk/server:/data
-      - /data/rustdesk/api:/app/data
-    networks:
-      - rustdesk-net
-    restart: unless-stopped
+```bash
+docker run -d \
+  --name rustdesk-api \
+  -p 21114:21114 \
+  -v rustdesk-api-data:/app/data \
+  -e TZ=Asia/Shanghai \
+  -e RUSTDESK_API_LANG=en \
+  -e RUSTDESK_API_RUSTDESK_ID_SERVER=id.example.com:21116 \
+  -e RUSTDESK_API_RUSTDESK_RELAY_SERVER=relay.example.com:21117 \
+  -e RUSTDESK_API_RUSTDESK_API_SERVER=https://api.example.com \
+  -e RUSTDESK_API_RUSTDESK_KEY_FILE=/app/data/id_ed25519.pub \
+  rustdesk-api:local
 ```
 
-旧 `lejianwen/rustdesk-server-s6:latest` 仍可作为历史参考，但本 fork 当前不再把它作为已验证发布目标。
+Replace the image name with the API image you actually built or published. First boot creates the `admin` user and prints a random initial password in logs. Capture it securely or reset it with the CLI.
 
+### Build and inject Web Admin
 
-## 其他
+```bash
+cd /path/to/rustdesk-api-web
+pnpm install --frozen-lockfile
+pnpm build
 
-- [WIKI](https://github.com/lejianwen/rustdesk-api/wiki)
-- [链接超时问题](https://github.com/lejianwen/rustdesk-api/issues/92)
-- [修改客户端ID](https://github.com/abdullah-erturk/RustDesk-ID-Changer)
+mkdir -p /path/to/rustdesk-api/resources/admin
+cp -a dist/. /path/to/rustdesk-api/resources/admin/
+```
 
+The API then serves Web Admin at `/_admin/`.
 
-## 鸣谢
+### full-s6 integrated deployment (reserved option)
 
-感谢所有做过贡献的人!
+The complete single-container stack is built from the `WeiYusc/rustdesk-server` repository:
 
-<a href="https://github.com/lejianwen/rustdesk-api/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=lejianwen/rustdesk-api" />
-</a>
+```bash
+RUSTDESK_API_SOURCE_DIR=/path/to/rustdesk-api \
+RUSTDESK_API_WEB_SOURCE_DIR=/path/to/rustdesk-api-web \
+RUSTDESK_FULL_S6_IMAGE=rustdesk-server-full-s6:local \
+./scripts/build-full-s6-image.sh
+```
 
-## 感谢你的支持！如果这个项目对你有帮助，请点个⭐️鼓励一下，谢谢！
+Current status:
 
-[lejianwen/rustdesk-server]: https://github.com/lejianwen/rustdesk-server
+- Local full-s6 build and smoke tests pass.
+- No public Docker Hub/GHCR image has been published yet.
+- Until the public image is ready, full-s6 runtime docs are a reserved/local-build option.
+
+### CLI
+
+```bash
+./apimain -h
+./apimain reset-admin-pwd <new-password>
+```
+
+When using a config file:
+
+```bash
+./apimain -c ./conf/config.yaml reset-admin-pwd <new-password>
+```
+
+### Verification boundary
+
+See:
+
+- [docs/current-fork-operations.md](docs/current-fork-operations.md)
+- [compatibility.md](compatibility.md)
