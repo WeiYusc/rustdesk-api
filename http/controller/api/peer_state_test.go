@@ -52,21 +52,28 @@ func postPeerStateJSON(router *gin.Engine, target string, body string) *httptest
 	return recorder
 }
 
+func createPeerStateLoginUser(t *testing.T, db *gorm.DB, username string, password string) *model.User {
+	t.Helper()
+
+	isAdmin := false
+	passwordHash, err := utils.EncryptPassword(password)
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+	user := &model.User{Username: username, Password: passwordHash, Status: model.COMMON_STATUS_ENABLE, IsAdmin: &isAdmin}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	return user
+}
+
 func TestLoginBindsExistingPeerAndRecordsToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db := setupPeerStateControllerTestDB(t)
 	router := gin.New()
 	router.POST("/api/login", (&Login{}).Login)
 
-	isAdmin := false
-	passwordHash, err := utils.EncryptPassword("secret123")
-	if err != nil {
-		t.Fatalf("hash password: %v", err)
-	}
-	user := &model.User{Username: "alice", Password: passwordHash, Status: model.COMMON_STATUS_ENABLE, IsAdmin: &isAdmin}
-	if err := db.Create(user).Error; err != nil {
-		t.Fatalf("create user: %v", err)
-	}
+	user := createPeerStateLoginUser(t, db, "alice", "secret123")
 	if err := db.Create(&model.Peer{Id: "peer-1", Uuid: "uuid-1"}).Error; err != nil {
 		t.Fatalf("create peer: %v", err)
 	}
@@ -101,6 +108,103 @@ func TestLoginBindsExistingPeerAndRecordsToken(t *testing.T) {
 	}
 	if loginLog.Client != "app" {
 		t.Fatalf("login log client = %q, want app", loginLog.Client)
+	}
+}
+
+func TestLoginAllowsValidCredentialsWhenCaptchaThresholdReached(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupPeerStateControllerTestDB(t)
+	global.LoginLimiter = utils.NewLoginLimiter(utils.SecurityPolicy{CaptchaThreshold: 1, BanThreshold: 3})
+	router := gin.New()
+	router.POST("/api/login", (&Login{}).Login)
+	createPeerStateLoginUser(t, db, "captcha-user", "secret123")
+
+	bad := postPeerStateJSON(router, "/api/login", `{"username":"captcha-user","password":"bad-password","id":"peer-1","uuid":"uuid-1"}`)
+	if bad.Code != http.StatusBadRequest {
+		t.Fatalf("bad login status = %d, want %d; body=%q", bad.Code, http.StatusBadRequest, bad.Body.String())
+	}
+
+	valid := postPeerStateJSON(router, "/api/login", `{"username":"captcha-user","password":"secret123","id":"peer-1","uuid":"uuid-1"}`)
+	if valid.Code != http.StatusOK {
+		t.Fatalf("valid login after captcha threshold status = %d, want %d; body=%q", valid.Code, http.StatusOK, valid.Body.String())
+	}
+	if !strings.Contains(valid.Body.String(), `"access_token"`) {
+		t.Fatalf("body = %q, want access_token", valid.Body.String())
+	}
+}
+
+func TestLoginRejectsBannedClientBeforeCredentialCheck(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupPeerStateControllerTestDB(t)
+	global.LoginLimiter = utils.NewLoginLimiter(utils.SecurityPolicy{CaptchaThreshold: -1, BanThreshold: 2})
+	router := gin.New()
+	router.POST("/api/login", (&Login{}).Login)
+	createPeerStateLoginUser(t, db, "banned-user", "secret123")
+
+	for i := 0; i < 2; i++ {
+		bad := postPeerStateJSON(router, "/api/login", `{"username":"banned-user","password":"bad-password","id":"peer-1","uuid":"uuid-1"}`)
+		if bad.Code != http.StatusBadRequest {
+			t.Fatalf("bad login %d status = %d, want %d; body=%q", i+1, bad.Code, http.StatusBadRequest, bad.Body.String())
+		}
+	}
+
+	banned := postPeerStateJSON(router, "/api/login", `{"username":"banned-user","password":"secret123","id":"peer-1","uuid":"uuid-1"}`)
+	if banned.Code != http.StatusTooManyRequests {
+		t.Fatalf("banned login status = %d, want %d; body=%q", banned.Code, http.StatusTooManyRequests, banned.Body.String())
+	}
+	if strings.Contains(banned.Body.String(), `"access_token"`) {
+		t.Fatalf("banned login returned token: body=%q", banned.Body.String())
+	}
+
+	var count int64
+	if err := db.Model(&model.UserToken{}).Count(&count).Error; err != nil {
+		t.Fatalf("count tokens: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("token count = %d, want 0 after banned login", count)
+	}
+}
+
+func TestSysInfoRejectsMissingPeerIDWithoutCreatingPeer(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupPeerStateControllerTestDB(t)
+	router := gin.New()
+	router.POST("/api/sysinfo", (&Peer{}).SysInfo)
+
+	recorder := postPeerStateJSON(router, "/api/sysinfo", `{"uuid":"uuid-1","hostname":"host-1","os":"Windows","username":"rd"}`)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d; body=%q", recorder.Code, http.StatusBadRequest, recorder.Body.String())
+	}
+
+	var count int64
+	if err := db.Model(&model.Peer{}).Count(&count).Error; err != nil {
+		t.Fatalf("count peers: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("peer count = %d, want 0 for invalid sysinfo", count)
+	}
+}
+
+func TestSysInfoCreatesPeerWhenLegacyPayloadOmitsUUID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupPeerStateControllerTestDB(t)
+	router := gin.New()
+	router.POST("/api/sysinfo", (&Peer{}).SysInfo)
+
+	recorder := postPeerStateJSON(router, "/api/sysinfo", `{"id":"legacy-peer","hostname":"legacy-host","os":"Windows","username":"rd"}`)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%q", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+	if recorder.Body.String() != "SYSINFO_UPDATED" {
+		t.Fatalf("body = %q, want SYSINFO_UPDATED", recorder.Body.String())
+	}
+
+	var peer model.Peer
+	if err := db.Where("id = ?", "legacy-peer").First(&peer).Error; err != nil {
+		t.Fatalf("find created legacy peer: %v", err)
+	}
+	if peer.Uuid != "" {
+		t.Fatalf("legacy peer uuid = %q, want empty", peer.Uuid)
 	}
 }
 

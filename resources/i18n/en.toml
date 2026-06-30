@@ -139,6 +139,11 @@ description = "Captcha error."
 one = "Captcha error."
 other = "Captcha error."
 
+[TooManyLoginAttempts]
+description = "Too many login attempts."
+one = "Too many failed login attempts. Please try again later."
+other = "Too many failed login attempts. Please try again later."
+
 [PwdLoginDisabled]
 description = "Password login disabled."
 one = "Password login disabled."

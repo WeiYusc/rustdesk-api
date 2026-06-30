@@ -35,12 +35,21 @@ func (l *Login) Login(c *gin.Context) {
 	// 检查登录限制
 	loginLimiter := global.LoginLimiter
 	clientIp := c.ClientIP()
+	if loginLimiter != nil {
+		if banned, _ := loginLimiter.CheckSecurityStatus(clientIp); banned {
+			global.Logger.Warn(fmt.Sprintf("Login Fail: %s %s %s", "TooManyLoginAttempts", c.RemoteIP(), c.ClientIP()))
+			c.JSON(http.StatusTooManyRequests, response.ErrorResponse{Error: response.TranslateMsg(c, "TooManyLoginAttempts")})
+			return
+		}
+	}
 
 	f := &api.LoginForm{}
 	err := c.ShouldBindJSON(f)
 	//fmt.Println(f)
 	if err != nil {
-		loginLimiter.RecordFailedAttempt(clientIp)
+		if loginLimiter != nil {
+			loginLimiter.RecordFailedAttempt(clientIp)
+		}
 		global.Logger.Warn(fmt.Sprintf("Login Fail: %s %s %s", "ParamsError", c.RemoteIP(), c.ClientIP()))
 		response.Error(c, response.TranslateMsg(c, "ParamsError")+err.Error())
 		return
@@ -48,7 +57,9 @@ func (l *Login) Login(c *gin.Context) {
 
 	errList := global.Validator.ValidStruct(c, f)
 	if len(errList) > 0 {
-		loginLimiter.RecordFailedAttempt(clientIp)
+		if loginLimiter != nil {
+			loginLimiter.RecordFailedAttempt(clientIp)
+		}
 		global.Logger.Warn(fmt.Sprintf("Login Fail: %s %s %s", "ParamsError", c.RemoteIP(), c.ClientIP()))
 		response.Error(c, errList[0])
 		return
@@ -57,7 +68,9 @@ func (l *Login) Login(c *gin.Context) {
 	u := service.AllService.UserService.InfoByUsernamePassword(f.Username, f.Password)
 
 	if u.Id == 0 {
-		loginLimiter.RecordFailedAttempt(clientIp)
+		if loginLimiter != nil {
+			loginLimiter.RecordFailedAttempt(clientIp)
+		}
 		global.Logger.Warn(fmt.Sprintf("Login Fail: %s %s %s", "UsernameOrPasswordError", c.RemoteIP(), c.ClientIP()))
 		response.Error(c, response.TranslateMsg(c, "UsernameOrPasswordError"))
 		return
@@ -74,6 +87,9 @@ func (l *Login) Login(c *gin.Context) {
 		f.DeviceInfo.Type = model.LoginLogClientWeb
 	}
 
+	if loginLimiter != nil {
+		loginLimiter.RemoveAttempts(clientIp)
+	}
 	ut := service.AllService.UserService.Login(u, &model.LoginLog{
 		UserId:   u.Id,
 		Client:   f.DeviceInfo.Type,

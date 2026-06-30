@@ -31,11 +31,15 @@ func (p *Peer) SysInfo(c *gin.Context) {
 		return
 	}
 	fpe := f.ToPeer()
+	if f.Id == "" {
+		response.Error(c, response.TranslateMsg(c, "ParamsError"))
+		return
+	}
 	pe := service.AllService.PeerService.FindById(f.Id)
 	if pe.RowId == 0 {
 		pe = f.ToPeer()
 		pe.UserId = service.AllService.UserService.FindLatestUserIdFromLoginLogByUuid(pe.Uuid, pe.Id)
-		if pe.UserId == 0 {//只同步未登录的被控端
+		if pe.UserId == 0 { //只同步未登录的被控端
 			err = service.AllService.PeerService.Create(pe)
 			if err != nil {
 				response.Error(c, response.TranslateMsg(c, "OperationFailed")+err.Error())
@@ -47,7 +51,7 @@ func (p *Peer) SysInfo(c *gin.Context) {
 		}
 	} else {
 		pe.UserId = service.AllService.UserService.FindLatestUserIdFromLoginLogByUuid(pe.Uuid, pe.Id)
-		if pe.UserId == 0 {//只同步未登录的被控端
+		if pe.UserId == 0 { //只同步未登录的被控端
 			fpe.RowId = pe.RowId
 			fpe.UserId = pe.UserId
 			err = service.AllService.PeerService.Update(fpe)

@@ -148,6 +148,11 @@ description = "Captcha error."
 one = "驗證碼錯誤。"
 other = "驗證碼錯誤。"
 
+[TooManyLoginAttempts]
+description = "Too many login attempts."
+one = "登入失敗次數過多，請稍後再試。"
+other = "登入失敗次數過多，請稍後再試。"
+
 [PwdLoginDisabled]
 description = "Password login disabled."
 one = "密碼登入已停用。"

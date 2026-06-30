@@ -9,6 +9,7 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"net/http"
+	"time"
 )
 
 func ApiInit(g *gin.Engine) {
@@ -23,12 +24,14 @@ func ApiInit(g *gin.Engine) {
 
 	frg := g.Group("/api")
 
+	reporting := frg.Group("", middleware.ReportingRateLimit(global.Config.Gin.ReportingRateLimitPerMin, time.Minute))
+
 	{
 		i := &api.Index{}
 		frg.GET("/", i.Index)
 		frg.GET("/version", i.Version)
 
-		frg.POST("/heartbeat", i.Heartbeat)
+		reporting.POST("/heartbeat", i.Heartbeat)
 	}
 
 	{
@@ -57,8 +60,8 @@ func ApiInit(g *gin.Engine) {
 	{
 		pe := &api.Peer{}
 		//提交系统信息
-		frg.POST("/sysinfo", pe.SysInfo)
-		frg.POST("/sysinfo_ver", pe.SysInfoVer)
+		reporting.POST("/sysinfo", pe.SysInfo)
+		reporting.POST("/sysinfo_ver", pe.SysInfoVer)
 	}
 
 	if global.Config.App.WebClient == 1 {
@@ -68,9 +71,9 @@ func ApiInit(g *gin.Engine) {
 	{
 		au := &api.Audit{}
 		//[method:POST] [uri:/api/audit/conn]
-		frg.POST("/audit/conn", au.AuditConn)
+		reporting.POST("/audit/conn", au.AuditConn)
 		//[method:POST] [uri:/api/audit/file]
-		frg.POST("/audit/file", au.AuditFile)
+		reporting.POST("/audit/file", au.AuditFile)
 	}
 
 	frg.Use(middleware.RustAuth())

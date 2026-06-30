@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/lejianwen/rustdesk-api/v2/config"
 	"github.com/lejianwen/rustdesk-api/v2/global"
+	"github.com/lejianwen/rustdesk-api/v2/http/middleware"
 	"github.com/lejianwen/rustdesk-api/v2/lib/jwt"
 	"github.com/lejianwen/rustdesk-api/v2/model"
 	"github.com/lejianwen/rustdesk-api/v2/service"
@@ -112,6 +115,108 @@ func adminSecurityRequest(router *gin.Engine, method string, target string, body
 	}
 	router.ServeHTTP(recorder, request)
 	return recorder
+}
+
+func requestWithAuthorization(router *gin.Engine, method string, target string, body string, token string) *httptest.ResponseRecorder {
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(method, target, strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		request.Header.Set("Authorization", "Bearer "+token)
+	}
+	router.ServeHTTP(recorder, request)
+	return recorder
+}
+
+func TestApiLoginBannedClientReachesControllerThroughGlobalLimiter(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupAdminSecurityFixture(t).db
+	global.LoginLimiter = utils.NewLoginLimiter(utils.SecurityPolicy{CaptchaThreshold: -1, BanThreshold: 2})
+	createAdminSecurityFixtureUser(t, db, "limited-login-user", false, "limited-login-token")
+	passwordHash, err := utils.EncryptPassword("secret123")
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+	if err := db.Model(&model.User{}).Where("username = ?", "limited-login-user").Update("password", passwordHash).Error; err != nil {
+		t.Fatalf("set password: %v", err)
+	}
+
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	repoRoot := filepath.Clean(filepath.Join(oldWd, "..", ".."))
+	if err := os.Chdir(repoRoot); err != nil {
+		t.Fatalf("chdir repo root: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(oldWd); err != nil {
+			t.Fatalf("restore cwd: %v", err)
+		}
+	})
+
+	router := gin.New()
+	router.Use(middleware.Limiter("/api/login"))
+	ApiInit(router)
+
+	for i := 0; i < 2; i++ {
+		bad := adminSecurityRequest(router, http.MethodPost, "/api/login", `{"username":"limited-login-user","password":"bad-password"}`, "")
+		if bad.Code != http.StatusBadRequest {
+			t.Fatalf("bad login %d status = %d, want %d; body=%q", i+1, bad.Code, http.StatusBadRequest, bad.Body.String())
+		}
+	}
+
+	banned := adminSecurityRequest(router, http.MethodPost, "/api/login", `{"username":"limited-login-user","password":"secret123"}`, "")
+	if banned.Code != http.StatusTooManyRequests {
+		t.Fatalf("banned login status = %d, want %d; body=%q", banned.Code, http.StatusTooManyRequests, banned.Body.String())
+	}
+}
+
+func TestApiServerConfigProductionRoutesRequireRustAuth(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fixture := setupAdminSecurityFixture(t)
+	global.Config.App.WebClient = 1
+	global.Config.Rustdesk = config.Rustdesk{IdServer: "rd.example.test:21116", Key: "fixture-public-key"}
+
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	repoRoot := filepath.Clean(filepath.Join(oldWd, "..", ".."))
+	if _, err := os.Stat(filepath.Join(repoRoot, "resources", "templates")); err != nil {
+		t.Fatalf("repo root %s missing resources/templates: %v", repoRoot, err)
+	}
+	if err := os.Chdir(repoRoot); err != nil {
+		t.Fatalf("chdir repo root: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(oldWd); err != nil {
+			t.Fatalf("restore cwd: %v", err)
+		}
+	})
+
+	// Rebuild production API router after toggling WebClient on for this route family.
+	router := gin.New()
+	ApiInit(router)
+
+	for _, path := range []string{"/api/server-config", "/api/server-config-v2"} {
+		t.Run(path+" unauthenticated", func(t *testing.T) {
+			unauthenticated := adminSecurityRequest(router, http.MethodPost, path, `{}`, "")
+			if unauthenticated.Code != http.StatusUnauthorized {
+				t.Fatalf("unauthenticated status = %d, want %d; body=%q", unauthenticated.Code, http.StatusUnauthorized, unauthenticated.Body.String())
+			}
+		})
+
+		t.Run(path+" authenticated", func(t *testing.T) {
+			authenticated := requestWithAuthorization(router, http.MethodPost, path, `{}`, fixture.nonAdminToken)
+			if authenticated.Code != http.StatusOK {
+				t.Fatalf("authenticated status = %d, want %d; body=%q", authenticated.Code, http.StatusOK, authenticated.Body.String())
+			}
+			if !strings.Contains(authenticated.Body.String(), "rd.example.test:21116") || !strings.Contains(authenticated.Body.String(), "fixture-public-key") {
+				t.Fatalf("authenticated response missing client config values: %s", authenticated.Body.String())
+			}
+		})
+	}
 }
 
 func TestAdminSecuritySensitiveRoutesRequireAdminPrivilege(t *testing.T) {

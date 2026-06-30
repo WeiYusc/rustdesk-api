@@ -42,7 +42,7 @@ func ApiInit() {
 	g.NoRoute(func(c *gin.Context) {
 		c.String(http.StatusNotFound, "404 not found")
 	})
-	g.Use(middleware.Logger(), middleware.Limiter(), middleware.BodyLimit(global.Config.Gin.BodyMaxSizeMb*bytesPerMegabyte, "/api/admin/file/upload"), gin.Recovery())
+	g.Use(middleware.Logger(), middleware.Limiter("/api/login"), middleware.BodyLimit(global.Config.Gin.BodyMaxSizeMb*bytesPerMegabyte, "/api/admin/file/upload"), gin.Recovery())
 	router.WebInit(g)
 	router.Init(g)
 	router.ApiInit(g)

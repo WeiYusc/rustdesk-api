@@ -148,6 +148,11 @@ description = "Captcha error."
 one = "Erreur de captcha."
 other = "Erreur de captcha."
 
+[TooManyLoginAttempts]
+description = "Too many login attempts."
+one = "Trop de tentatives de connexion échouées. Veuillez réessayer plus tard."
+other = "Trop de tentatives de connexion échouées. Veuillez réessayer plus tard."
+
 [PwdLoginDisabled]
 description = "Password login disabled."
 one = "Connexion par mot de passe désactivée."

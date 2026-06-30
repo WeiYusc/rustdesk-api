@@ -142,6 +142,11 @@ description = "Captcha error."
 one = "Captcha 오류."
 other = "Captcha 오류."
 
+[TooManyLoginAttempts]
+description = "Too many login attempts."
+one = "로그인 실패 횟수가 너무 많습니다. 나중에 다시 시도하세요."
+other = "로그인 실패 횟수가 너무 많습니다. 나중에 다시 시도하세요."
+
 [PwdLoginDisabled]
 description = "Password login disabled."
 one = "비밀번호 로그인이 비활성화되었습니다."

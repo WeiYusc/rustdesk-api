@@ -7,9 +7,19 @@ import (
 	"net/http"
 )
 
-func Limiter() gin.HandlerFunc {
+func Limiter(skipPaths ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		for _, skipPath := range skipPaths {
+			if c.Request.URL.Path == skipPath {
+				c.Next()
+				return
+			}
+		}
 		loginLimiter := global.LoginLimiter
+		if loginLimiter == nil {
+			c.Next()
+			return
+		}
 		clientIp := c.ClientIP()
 		banned, _ := loginLimiter.CheckSecurityStatus(clientIp)
 		if banned {

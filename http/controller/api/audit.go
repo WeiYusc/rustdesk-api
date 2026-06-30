@@ -34,6 +34,10 @@ func (a *Audit) AuditConn(c *gin.Context) {
 	c.ShouldBindBodyWith(ttt, binding.JSON)
 	fmt.Println(ttt)*/
 	ac := af.ToAuditConn()
+	if af.Id == "" || (af.Action == model.AuditActionNew && af.ConnId == 0) {
+		response.Error(c, response.TranslateMsg(c, "ParamsError"))
+		return
+	}
 	if af.Action == model.AuditActionNew {
 		service.AllService.AuditService.CreateAuditConn(ac)
 	} else if af.Action == model.AuditActionClose {
@@ -79,6 +83,10 @@ func (a *Audit) AuditFile(c *gin.Context) {
 	//c.ShouldBindBodyWith(ttt, binding.JSON)
 	//fmt.Println(ttt)
 	af := aff.ToAuditFile()
+	if aff.Id == "" {
+		response.Error(c, response.TranslateMsg(c, "ParamsError"))
+		return
+	}
 	service.AllService.AuditService.CreateAuditFile(af)
 	response.Success(c, "")
 }

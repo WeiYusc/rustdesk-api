@@ -16,6 +16,9 @@ func TestDefaultConfigEnablesLDAPTLSVerification(t *testing.T) {
 	if cfg.Gin.BodyMaxSizeMb != 10 {
 		t.Fatalf("default gin.body-max-size-mb = %d, want 10", cfg.Gin.BodyMaxSizeMb)
 	}
+	if cfg.Gin.ReportingRateLimitPerMin != 120 {
+		t.Fatalf("default gin.reporting-rate-limit-per-minute = %d, want 120", cfg.Gin.ReportingRateLimitPerMin)
+	}
 }
 
 func TestOmittedLDAPTLSVerifyDefaultsToTrue(t *testing.T) {
