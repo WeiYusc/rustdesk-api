@@ -153,6 +153,50 @@ func TestAdminGroupRoutesRequireAdminAndListGroups(t *testing.T) {
 	}
 }
 
+func TestAdminGroupDetailRejectsInvalidID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fixture := setupAdminGroupFixture(t)
+
+	invalidDetail := adminGroupRequest(fixture.router, http.MethodGet, "/api/admin/group/detail/not-a-number", "", fixture.adminToken)
+	if invalidDetail.Code != http.StatusOK {
+		t.Fatalf("invalid detail status = %d, want %d; body=%q", invalidDetail.Code, http.StatusOK, invalidDetail.Body.String())
+	}
+	assertAdminGroupResponseCode(t, invalidDetail.Body.Bytes(), 101)
+	if strings.Contains(invalidDetail.Body.String(), "ItemNotFound") {
+		t.Fatalf("invalid detail returned not-found instead of params error: body=%q", invalidDetail.Body.String())
+	}
+}
+
+func TestAdminGroupListReportsDefaultPaginationMetadata(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fixture := setupAdminGroupFixture(t)
+
+	adminList := adminGroupRequest(fixture.router, http.MethodGet, "/api/admin/group/list", "", fixture.adminToken)
+	if adminList.Code != http.StatusOK {
+		t.Fatalf("admin list status = %d, want %d; body=%q", adminList.Code, http.StatusOK, adminList.Body.String())
+	}
+	var payload struct {
+		Code int `json:"code"`
+		Data struct {
+			Page     int `json:"page"`
+			PageSize int `json:"page_size"`
+			Total    int `json:"total"`
+			Groups   []struct {
+				Id uint `json:"id"`
+			} `json:"list"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(adminList.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal default pagination list: %v; body=%q", err, adminList.Body.String())
+	}
+	if payload.Code != 0 || payload.Data.Page != 1 || payload.Data.PageSize != 10 || payload.Data.Total != 2 {
+		t.Fatalf("default pagination payload = %#v", payload)
+	}
+	if len(payload.Data.Groups) != 2 {
+		t.Fatalf("default pagination list length = %d, want 2", len(payload.Data.Groups))
+	}
+}
+
 func TestAdminGroupCreateDetailUpdateAndDeleteSelectedOnly(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	fixture := setupAdminGroupFixture(t)

@@ -16,6 +16,7 @@ func (srs *ShareRecordService) InfoById(id uint) *model.ShareRecord {
 }
 
 func (srs *ShareRecordService) List(page, pageSize uint, where func(tx *gorm.DB)) (res *model.ShareRecordList) {
+	page, pageSize = NormalizePagination(page, pageSize)
 	res = &model.ShareRecordList{}
 	res.Page = int64(page)
 	res.PageSize = int64(pageSize)

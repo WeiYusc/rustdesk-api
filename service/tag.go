@@ -91,6 +91,7 @@ func (s *TagService) InfoById(id uint) *model.Tag {
 }
 
 func (s *TagService) List(page, pageSize uint, where func(tx *gorm.DB)) (res *model.TagList) {
+	page, pageSize = NormalizePagination(page, pageSize)
 	res = &model.TagList{}
 	res.Page = int64(page)
 	res.PageSize = int64(pageSize)

@@ -13,7 +13,6 @@ import (
 	"github.com/lejianwen/rustdesk-api/v2/service"
 	"github.com/lejianwen/rustdesk-api/v2/utils"
 	"gorm.io/gorm"
-	"strconv"
 )
 
 type User struct {
@@ -31,8 +30,10 @@ type User struct {
 // @Router /admin/user/detail/{id} [get]
 // @Security token
 func (ct *User) Detail(c *gin.Context) {
-	id := c.Param("id")
-	iid, _ := strconv.Atoi(id)
+	iid, ok := parsePositiveIDParam(c)
+	if !ok {
+		return
+	}
 	u := service.AllService.UserService.InfoById(uint(iid))
 	if u.Id > 0 {
 		response.Success(c, u)

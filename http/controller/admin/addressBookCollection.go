@@ -8,7 +8,6 @@ import (
 	"github.com/lejianwen/rustdesk-api/v2/model"
 	"github.com/lejianwen/rustdesk-api/v2/service"
 	"gorm.io/gorm"
-	"strconv"
 )
 
 type AddressBookCollection struct {
@@ -26,8 +25,10 @@ type AddressBookCollection struct {
 // @Router /admin/address_book_collection/detail/{id} [get]
 // @Security token
 func (abc *AddressBookCollection) Detail(c *gin.Context) {
-	id := c.Param("id")
-	iid, _ := strconv.Atoi(id)
+	iid, ok := parsePositiveIDParam(c)
+	if !ok {
+		return
+	}
 	t := service.AllService.AddressBookService.CollectionInfoById(uint(iid))
 	if t.Id > 0 {
 		response.Success(c, t)

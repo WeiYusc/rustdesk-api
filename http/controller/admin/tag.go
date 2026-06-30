@@ -7,7 +7,6 @@ import (
 	"github.com/lejianwen/rustdesk-api/v2/http/response"
 	"github.com/lejianwen/rustdesk-api/v2/service"
 	"gorm.io/gorm"
-	"strconv"
 )
 
 type Tag struct {
@@ -25,8 +24,10 @@ type Tag struct {
 // @Router /admin/tag/detail/{id} [get]
 // @Security token
 func (ct *Tag) Detail(c *gin.Context) {
-	id := c.Param("id")
-	iid, _ := strconv.Atoi(id)
+	iid, ok := parsePositiveIDParam(c)
+	if !ok {
+		return
+	}
 	t := service.AllService.TagService.InfoById(uint(iid))
 	u := service.AllService.UserService.CurUser(c)
 	if !service.AllService.UserService.IsAdmin(u) && t.UserId != u.Id {

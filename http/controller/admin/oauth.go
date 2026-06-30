@@ -1,8 +1,6 @@
 package admin
 
 import (
-	"strconv"
-
 	"github.com/gin-gonic/gin"
 	"github.com/lejianwen/rustdesk-api/v2/global"
 	"github.com/lejianwen/rustdesk-api/v2/http/request/admin"
@@ -151,8 +149,10 @@ func (o *Oauth) Unbind(c *gin.Context) {
 // @Router /admin/oauth/detail/{id} [get]
 // @Security token
 func (o *Oauth) Detail(c *gin.Context) {
-	id := c.Param("id")
-	iid, _ := strconv.Atoi(id)
+	iid, ok := parsePositiveIDParam(c)
+	if !ok {
+		return
+	}
 	u := service.AllService.OauthService.InfoById(uint(iid))
 	if u.Id > 0 {
 		response.Success(c, sanitizeOauth(u))

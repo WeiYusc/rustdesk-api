@@ -6,7 +6,6 @@ import (
 	"github.com/lejianwen/rustdesk-api/v2/http/request/admin"
 	"github.com/lejianwen/rustdesk-api/v2/http/response"
 	"github.com/lejianwen/rustdesk-api/v2/service"
-	"strconv"
 )
 
 type DeviceGroup struct {
@@ -24,8 +23,10 @@ type DeviceGroup struct {
 // @Router /admin/device_group/detail/{id} [get]
 // @Security token
 func (ct *DeviceGroup) Detail(c *gin.Context) {
-	id := c.Param("id")
-	iid, _ := strconv.Atoi(id)
+	iid, ok := parsePositiveIDParam(c)
+	if !ok {
+		return
+	}
 	u := service.AllService.GroupService.DeviceGroupInfoById(uint(iid))
 	if u.Id > 0 {
 		response.Success(c, u)

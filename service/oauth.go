@@ -415,6 +415,7 @@ func (os *OauthService) constructScopes(scopes string) []string {
 }
 
 func (os *OauthService) List(page, pageSize uint, where func(tx *gorm.DB)) (res *model.OauthList) {
+	page, pageSize = NormalizePagination(page, pageSize)
 	res = &model.OauthList{}
 	res.Page = int64(page)
 	res.PageSize = int64(pageSize)

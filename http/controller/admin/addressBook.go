@@ -11,7 +11,6 @@ import (
 	"github.com/lejianwen/rustdesk-api/v2/model"
 	"github.com/lejianwen/rustdesk-api/v2/service"
 	"gorm.io/gorm"
-	"strconv"
 	"sync"
 )
 
@@ -30,8 +29,10 @@ type AddressBook struct {
 // @Router /admin/address_book/detail/{id} [get]
 // @Security token
 func (ct *AddressBook) Detail(c *gin.Context) {
-	id := c.Param("id")
-	iid, _ := strconv.Atoi(id)
+	iid, ok := parsePositiveIDParam(c)
+	if !ok {
+		return
+	}
 	t := service.AllService.AddressBookService.InfoByRowId(uint(iid))
 	if t.RowId > 0 {
 		response.Success(c, t)

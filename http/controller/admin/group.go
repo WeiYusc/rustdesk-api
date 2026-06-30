@@ -6,7 +6,6 @@ import (
 	"github.com/lejianwen/rustdesk-api/v2/http/request/admin"
 	"github.com/lejianwen/rustdesk-api/v2/http/response"
 	"github.com/lejianwen/rustdesk-api/v2/service"
-	"strconv"
 )
 
 type Group struct {
@@ -24,8 +23,10 @@ type Group struct {
 // @Router /admin/group/detail/{id} [get]
 // @Security token
 func (ct *Group) Detail(c *gin.Context) {
-	id := c.Param("id")
-	iid, _ := strconv.Atoi(id)
+	iid, ok := parsePositiveIDParam(c)
+	if !ok {
+		return
+	}
 	u := service.AllService.GroupService.InfoById(uint(iid))
 	if u.Id > 0 {
 		response.Success(c, u)

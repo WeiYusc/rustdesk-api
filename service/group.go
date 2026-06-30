@@ -16,6 +16,7 @@ func (us *GroupService) InfoById(id uint) *model.Group {
 }
 
 func (us *GroupService) List(page, pageSize uint, where func(tx *gorm.DB)) (res *model.GroupList) {
+	page, pageSize = NormalizePagination(page, pageSize)
 	res = &model.GroupList{}
 	res.Page = int64(page)
 	res.PageSize = int64(pageSize)
@@ -51,6 +52,7 @@ func (us *GroupService) DeviceGroupInfoById(id uint) *model.DeviceGroup {
 }
 
 func (us *GroupService) DeviceGroupList(page, pageSize uint, where func(tx *gorm.DB)) (res *model.DeviceGroupList) {
+	page, pageSize = NormalizePagination(page, pageSize)
 	res = &model.DeviceGroupList{}
 	res.Page = int64(page)
 	res.PageSize = int64(pageSize)

@@ -16,6 +16,7 @@ func (us *LoginLogService) InfoById(id uint) *model.LoginLog {
 }
 
 func (us *LoginLogService) List(page, pageSize uint, where func(tx *gorm.DB)) (res *model.LoginLogList) {
+	page, pageSize = NormalizePagination(page, pageSize)
 	res = &model.LoginLogList{}
 	res.Page = int64(page)
 	res.PageSize = int64(pageSize)

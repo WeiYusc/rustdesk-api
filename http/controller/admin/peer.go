@@ -7,7 +7,6 @@ import (
 	"github.com/lejianwen/rustdesk-api/v2/http/response"
 	"github.com/lejianwen/rustdesk-api/v2/service"
 	"gorm.io/gorm"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -39,8 +38,10 @@ type Peer struct {
 // @Router /admin/peer/detail/{id} [get]
 // @Security token
 func (ct *Peer) Detail(c *gin.Context) {
-	id := c.Param("id")
-	iid, _ := strconv.Atoi(id)
+	iid, ok := parsePositiveIDParam(c)
+	if !ok {
+		return
+	}
 	u := service.AllService.PeerService.InfoByRowId(uint(iid))
 	if u.RowId > 0 {
 		response.Success(c, u)

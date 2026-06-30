@@ -129,6 +129,7 @@ func (s *AddressBookService) UpdateAddressBook(abs []*model.AddressBook, userId 
 }
 
 func (s *AddressBookService) List(page, pageSize uint, where func(tx *gorm.DB)) (res *model.AddressBookList) {
+	page, pageSize = NormalizePagination(page, pageSize)
 	res = &model.AddressBookList{}
 	res.Page = int64(page)
 	res.PageSize = int64(pageSize)
@@ -245,6 +246,7 @@ func (s *AddressBookService) ListByUserIdAndCollectionId(userId, cid, page, page
 	return
 }
 func (s *AddressBookService) ListCollection(page, pageSize uint, where func(tx *gorm.DB)) (res *model.AddressBookCollectionList) {
+	page, pageSize = NormalizePagination(page, pageSize)
 	res = &model.AddressBookCollectionList{}
 	res.Page = int64(page)
 	res.PageSize = int64(pageSize)
@@ -376,6 +378,7 @@ func (s *AddressBookService) CreateRule(t *model.AddressBookCollectionRule) erro
 }
 
 func (s *AddressBookService) ListRules(page uint, size uint, f func(tx *gorm.DB)) *model.AddressBookCollectionRuleList {
+	page, size = NormalizePagination(page, size)
 	res := &model.AddressBookCollectionRuleList{}
 	res.Page = int64(page)
 	res.PageSize = int64(size)

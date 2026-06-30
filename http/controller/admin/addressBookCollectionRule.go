@@ -8,7 +8,6 @@ import (
 	"github.com/lejianwen/rustdesk-api/v2/model"
 	"github.com/lejianwen/rustdesk-api/v2/service"
 	"gorm.io/gorm"
-	"strconv"
 )
 
 type AddressBookCollectionRule struct {
@@ -59,8 +58,10 @@ func (abcr *AddressBookCollectionRule) List(c *gin.Context) {
 // @Router /admin/address_book_collection_rule/detail/{id} [get]
 // @Security token
 func (abcr *AddressBookCollectionRule) Detail(c *gin.Context) {
-	id := c.Param("id")
-	iid, _ := strconv.Atoi(id)
+	iid, ok := parsePositiveIDParam(c)
+	if !ok {
+		return
+	}
 	t := service.AllService.AddressBookService.RuleInfoById(uint(iid))
 	if t.Id > 0 {
 		response.Success(c, t)

@@ -129,6 +129,7 @@ func (us *UserService) CurUser(c *gin.Context) *model.User {
 }
 
 func (us *UserService) List(page, pageSize uint, where func(tx *gorm.DB)) (res *model.UserList) {
+	page, pageSize = NormalizePagination(page, pageSize)
 	res = &model.UserList{}
 	res.Page = int64(page)
 	res.PageSize = int64(pageSize)
@@ -482,6 +483,7 @@ func (us *UserService) Register(username string, email string, password string, 
 }
 
 func (us *UserService) TokenList(page uint, size uint, f func(tx *gorm.DB)) *model.UserTokenList {
+	page, size = NormalizePagination(page, size)
 	res := &model.UserTokenList{}
 	res.Page = int64(page)
 	res.PageSize = int64(size)

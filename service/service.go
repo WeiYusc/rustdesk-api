@@ -52,14 +52,19 @@ func New(c *config.Config, g *gorm.DB, l *log.Logger, j *jwt.Jwt, lo lock.Locker
 	return AllService
 }
 
+func NormalizePagination(page, pageSize uint) (uint, uint) {
+	if page == 0 {
+		page = 1
+	}
+	if pageSize == 0 {
+		pageSize = 10
+	}
+	return page, pageSize
+}
+
 func Paginate(page, pageSize uint) func(db *gorm.DB) *gorm.DB {
+	page, pageSize = NormalizePagination(page, pageSize)
 	return func(db *gorm.DB) *gorm.DB {
-		if page == 0 {
-			page = 1
-		}
-		if pageSize == 0 {
-			pageSize = 10
-		}
 		offset := (page - 1) * pageSize
 		return db.Offset(int(offset)).Limit(int(pageSize))
 	}

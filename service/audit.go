@@ -9,6 +9,7 @@ type AuditService struct {
 }
 
 func (as *AuditService) AuditConnList(page, pageSize uint, where func(tx *gorm.DB)) (res *model.AuditConnList) {
+	page, pageSize = NormalizePagination(page, pageSize)
 	res = &model.AuditConnList{}
 	res.Page = int64(page)
 	res.PageSize = int64(pageSize)
@@ -58,6 +59,7 @@ func (as *AuditService) FileInfoById(id uint) (res *model.AuditFile) {
 }
 
 func (as *AuditService) AuditFileList(page, pageSize uint, where func(tx *gorm.DB)) (res *model.AuditFileList) {
+	page, pageSize = NormalizePagination(page, pageSize)
 	res = &model.AuditFileList{}
 	res.Page = int64(page)
 	res.PageSize = int64(pageSize)

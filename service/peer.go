@@ -66,6 +66,7 @@ func (ps *PeerService) EraseUserId(userId uint) error {
 
 // ListByUserIds 根据用户id取列表
 func (ps *PeerService) ListByUserIds(userIds []uint, page, pageSize uint) (res *model.PeerList) {
+	page, pageSize = NormalizePagination(page, pageSize)
 	res = &model.PeerList{}
 	res.Page = int64(page)
 	res.PageSize = int64(pageSize)
@@ -78,6 +79,7 @@ func (ps *PeerService) ListByUserIds(userIds []uint, page, pageSize uint) (res *
 }
 
 func (ps *PeerService) List(page, pageSize uint, orderBy string, where func(tx *gorm.DB)) (res *model.PeerList) {
+	page, pageSize = NormalizePagination(page, pageSize)
 	res = &model.PeerList{}
 	res.Page = int64(page)
 	res.PageSize = int64(pageSize)

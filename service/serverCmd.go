@@ -11,13 +11,8 @@ type ServerCmdService struct{}
 
 // List
 func (is *ServerCmdService) List(page, pageSize uint) (res *model.ServerCmdList) {
+	page, pageSize = NormalizePagination(page, pageSize)
 	res = &model.ServerCmdList{}
-	if page == 0 {
-		page = 1
-	}
-	if pageSize == 0 {
-		pageSize = 10
-	}
 	res.Page = int64(page)
 	res.PageSize = int64(pageSize)
 
