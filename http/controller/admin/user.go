@@ -65,10 +65,19 @@ func (ct *User) Create(c *gin.Context) {
 		response.Fail(c, 101, errList[0])
 		return
 	}
+	if f.Password == "" {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+"PasswordRequired")
+		return
+	}
+	if errList := global.Validator.ValidVar(c, f.Password, "gte=4,lte=32"); len(errList) > 0 {
+		response.Fail(c, 101, errList[0])
+		return
+	}
 	u := f.ToUser()
+	u.Password = f.Password
 	err := service.AllService.UserService.Create(u)
 	if err != nil {
-		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
+		response.Fail(c, 101, translateUserServiceError(c, "OperationFailed", err))
 		return
 	}
 	response.Success(c, nil)
@@ -177,6 +186,8 @@ func translateUserServiceError(c *gin.Context, fallbackPrefix string, err error)
 		return ""
 	}
 	switch err.Error() {
+	case "PasswordRequired":
+		return response.TranslateMsg(c, "ParamsError") + err.Error()
 	case "LastAdminCannotDelete", "LastAdminCannotUpdate":
 		return response.TranslateMsg(c, err.Error())
 	default:

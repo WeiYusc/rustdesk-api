@@ -2,6 +2,7 @@ package upload
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/hmac"
 	"crypto/md5"
@@ -16,8 +17,11 @@ import (
 	"hash"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -31,7 +35,9 @@ type Oss struct {
 }
 
 const (
-	base64Table = "1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-_"
+	base64Table            = "1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-_"
+	maxOssPublicKeyBytes   = 64 * 1024
+	ossPublicKeyFetchLimit = maxOssPublicKeyBytes + 1
 )
 
 var coder = base64.NewEncoding(base64Table)
@@ -172,21 +178,91 @@ func getPublicKey(r *http.Request) ([]byte, error) {
 		fmt.Println("GetPublicKey from Request header failed :  No x-oss-pub-key-url field. ")
 		return bytePublicKey, errors.New("no x-oss-pub-key-url field in Request header ")
 	}
-	publicKeyURL, _ := base64.StdEncoding.DecodeString(publicKeyURLBase64)
-	// fmt.Printf("publicKeyURL={%s}\n", publicKeyURL)
-	// get PublicKey Content from URL
-	responsePublicKeyURL, err := http.Get(string(publicKeyURL))
+	publicKeyURL, err := base64.StdEncoding.DecodeString(publicKeyURLBase64)
 	if err != nil {
-		fmt.Printf("Get PublicKey Content from URL failed : %s \n", err.Error())
+		return bytePublicKey, errors.New("invalid x-oss-pub-key-url encoding")
+	}
+	u, err := validateOssPublicKeyURL(string(publicKeyURL))
+	if err != nil {
 		return bytePublicKey, err
 	}
-	bytePublicKey, err = ioutil.ReadAll(responsePublicKeyURL.Body)
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	return fetchOssPublicKey(ctx, u)
+}
+
+func validateOssPublicKeyURL(raw string) (*url.URL, error) {
+	u, err := url.Parse(raw)
 	if err != nil {
-		fmt.Printf("Read PublicKey Content from URL failed : %s \n", err.Error())
-		return bytePublicKey, err
+		return nil, err
 	}
-	defer responsePublicKeyURL.Body.Close()
-	// fmt.Printf("publicKey={%s}\n", bytePublicKey)
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return nil, errors.New("unsupported OSS public key URL scheme")
+	}
+	host := strings.ToLower(u.Hostname())
+	if !isAllowedOssPublicKeyHost(host) {
+		return nil, errors.New("unsupported OSS public key URL host")
+	}
+	for _, ip := range lookupPublicKeyHostIPs(host) {
+		if isPrivateOrReservedIP(ip) {
+			return nil, errors.New("unsafe OSS public key URL address")
+		}
+	}
+	return u, nil
+}
+
+func isAllowedOssPublicKeyHost(host string) bool {
+	return host == "gosspublic.alicdn.com"
+}
+
+func lookupPublicKeyHostIPs(host string) []net.IP {
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		return nil
+	}
+	return ips
+}
+
+func isPrivateOrReservedIP(ip net.IP) bool {
+	if ip == nil {
+		return true
+	}
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified()
+}
+
+func ossPublicKeyHTTPClient() *http.Client {
+	return &http.Client{
+		Timeout: 5 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+}
+
+func fetchOssPublicKey(ctx context.Context, u *url.URL) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := ossPublicKeyHTTPClient().Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("OSS public key URL returned status %d", resp.StatusCode)
+	}
+	return readLimitedOssPublicKey(resp)
+}
+
+func readLimitedOssPublicKey(resp *http.Response) ([]byte, error) {
+	bytePublicKey, err := io.ReadAll(io.LimitReader(resp.Body, ossPublicKeyFetchLimit))
+	if err != nil {
+		return nil, err
+	}
+	if len(bytePublicKey) > maxOssPublicKeyBytes {
+		return nil, errors.New("OSS public key response too large")
+	}
 	return bytePublicKey, nil
 }
 

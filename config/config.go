@@ -74,6 +74,7 @@ func Init(rowVal *Config, path string) *viper.Viper {
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
 	v.SetEnvPrefix("RUSTDESK_API")
+	v.SetDefault("ldap.tls-verify", true)
 	v.SetConfigFile(path)
 	v.SetConfigType("yaml")
 	err := v.ReadInConfig()
@@ -101,6 +102,7 @@ func Init(rowVal *Config, path string) *viper.Viper {
 	rowVal.Rustdesk.LoadKeyFile()
 	rowVal.App.Init()
 	rowVal.Admin.Init()
+	rowVal.Gin.Init()
 	return v
 }
 

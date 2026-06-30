@@ -182,8 +182,8 @@ func (us *UserService) Create(u *model.User) error {
 	}
 	u.Username = us.formatUsername(u.Username)
 	var err error
-	if u.Password == "" {
-		u.Password = "1234"
+	if strings.TrimSpace(u.Password) == "" {
+		return errors.New("PasswordRequired")
 	}
 	u.Password, err = utils.EncryptPassword(u.Password)
 	if err != nil {

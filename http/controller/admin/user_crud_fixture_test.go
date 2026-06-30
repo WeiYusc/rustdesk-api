@@ -147,11 +147,30 @@ func TestAdminUserCRUDRoutesRequireAdminPrivilege(t *testing.T) {
 	assertAdminUserCRUDResponseCode(t, nonAdmin.Body.Bytes(), 403)
 }
 
+func TestAdminUserCreateRejectsMissingPassword(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fixture := setupAdminUserCrudFixture(t)
+
+	create := adminUserCrudRequest(fixture.router, http.MethodPost, "/api/admin/user/create", `{"username":"missing-password-user","email":"missing@example.test","nickname":"Missing Password","group_id":2,"is_admin":false,"status":1}`, fixture.adminToken)
+	if create.Code != http.StatusOK {
+		t.Fatalf("create status = %d, want %d; body=%q", create.Code, http.StatusOK, create.Body.String())
+	}
+	assertAdminUserCRUDResponseCode(t, create.Body.Bytes(), 101)
+
+	var count int64
+	if err := fixture.db.Model(&model.User{}).Where("username = ?", "missing-password-user").Count(&count).Error; err != nil {
+		t.Fatalf("count missing password user: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("created %d user(s) without password, want 0", count)
+	}
+}
+
 func TestAdminUserCreateDetailUpdateAndDeleteSelectedOnly(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	fixture := setupAdminUserCrudFixture(t)
 
-	create := adminUserCrudRequest(fixture.router, http.MethodPost, "/api/admin/user/create", `{"username":"created-crud-user","email":"created@example.test","nickname":"Created User","avatar":"avatar.png","group_id":2,"is_admin":false,"status":1,"remark":"created remark"}`, fixture.adminToken)
+	create := adminUserCrudRequest(fixture.router, http.MethodPost, "/api/admin/user/create", `{"username":"created-crud-user","password":"secure1234","email":"created@example.test","nickname":"Created User","avatar":"avatar.png","group_id":2,"is_admin":false,"status":1,"remark":"created remark"}`, fixture.adminToken)
 	if create.Code != http.StatusOK {
 		t.Fatalf("create status = %d, want %d; body=%q", create.Code, http.StatusOK, create.Body.String())
 	}
@@ -164,8 +183,11 @@ func TestAdminUserCreateDetailUpdateAndDeleteSelectedOnly(t *testing.T) {
 	if created.Email != "created@example.test" || created.Nickname != "Created User" || created.Avatar != "avatar.png" || created.GroupId != 2 || created.Status != model.COMMON_STATUS_ENABLE || created.Remark != "created remark" || service.AllService.UserService.IsAdmin(&created) {
 		t.Fatalf("created user = %#v", created)
 	}
-	if created.Password == "" {
-		t.Fatalf("created user password is empty, want current default password behavior")
+	if ok, _, err := utils.VerifyPassword(created.Password, "secure1234"); err != nil || !ok {
+		t.Fatalf("created user password was not stored as submitted bcrypt password: ok=%v err=%v", ok, err)
+	}
+	if ok, _, err := utils.VerifyPassword(created.Password, "1234"); err != nil || ok {
+		t.Fatalf("created user password still accepts default 1234: ok=%v err=%v", ok, err)
 	}
 
 	detail := adminUserCrudRequest(fixture.router, http.MethodGet, "/api/admin/user/detail/"+strconv.FormatUint(uint64(created.Id), 10), "", fixture.adminToken)
@@ -190,7 +212,8 @@ func TestAdminUserCreateDetailUpdateAndDeleteSelectedOnly(t *testing.T) {
 		t.Fatalf("detail payload = %#v", detailPayload)
 	}
 
-	update := adminUserCrudRequest(fixture.router, http.MethodPost, "/api/admin/user/update", `{"id":`+strconv.FormatUint(uint64(created.Id), 10)+`,"username":"created-crud-user","email":"updated@example.test","nickname":"Updated User","avatar":"updated.png","group_id":3,"is_admin":false,"status":2,"remark":"updated remark"}`, fixture.adminToken)
+	oldPasswordHash := created.Password
+	update := adminUserCrudRequest(fixture.router, http.MethodPost, "/api/admin/user/update", `{"id":`+strconv.FormatUint(uint64(created.Id), 10)+`,"username":"created-crud-user","password":"should-not-update-here","email":"updated@example.test","nickname":"Updated User","avatar":"updated.png","group_id":3,"is_admin":false,"status":2,"remark":"updated remark"}`, fixture.adminToken)
 	if update.Code != http.StatusOK {
 		t.Fatalf("update status = %d, want %d; body=%q", update.Code, http.StatusOK, update.Body.String())
 	}
@@ -201,6 +224,9 @@ func TestAdminUserCreateDetailUpdateAndDeleteSelectedOnly(t *testing.T) {
 	}
 	if updated.Email != "updated@example.test" || updated.Nickname != "Updated User" || updated.Avatar != "updated.png" || updated.GroupId != 3 || updated.Status != model.COMMON_STATUS_DISABLED || updated.Remark != "updated remark" || service.AllService.UserService.IsAdmin(&updated) {
 		t.Fatalf("updated user = %#v", updated)
+	}
+	if updated.Password != oldPasswordHash {
+		t.Fatalf("admin update changed password hash via UserForm password field")
 	}
 
 	deleteResponse := adminUserCrudRequest(fixture.router, http.MethodPost, "/api/admin/user/delete", `{"id":`+strconv.FormatUint(uint64(created.Id), 10)+`,"username":"created-crud-user","group_id":3,"is_admin":false,"status":2}`, fixture.adminToken)

@@ -23,6 +23,7 @@ gin:
   mode: "release" #release,debug,test
   resources-path: 'resources'  #对外静态文件目录
   trust-proxy: ""
+  body-max-size-mb: 10 # 全局请求体大小限制（MB），上传接口仍受 app.upload-max-size-mb 限制
 gorm:
   type: "sqlite"
   max-idle-conns: 10
@@ -68,7 +69,7 @@ ldap:
   enable: false
   url: "ldap://ldap.example.com:389"
   tls-ca-file: ""
-  tls-verify: false
+  tls-verify: true # true: verify LDAPS certificate (recommended); false: allow insecure/self-signed TLS explicitly
   base-dn: "dc=example,dc=com"
   bind-dn: "cn=admin,dc=example,dc=com"
   bind-password: "password"
