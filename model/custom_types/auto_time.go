@@ -18,7 +18,9 @@ func (mt AutoTime) Value() (driver.Value, error) {
 }
 
 func (mt AutoTime) MarshalJSON() ([]byte, error) {
-	//b := make([]byte, 0, len("2006-01-02 15:04:05")+2)
-	b := time.Time(mt).AppendFormat([]byte{}, "\"2006-01-02 15:04:05\"")
-	return b, nil
+	t := time.Time(mt)
+	if t.IsZero() {
+		return []byte("null"), nil
+	}
+	return t.MarshalJSON()
 }
