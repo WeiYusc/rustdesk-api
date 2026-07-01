@@ -29,7 +29,7 @@ type Login struct {
 // @Router /admin/login [post]
 // @Security token
 func (ct *Login) Login(c *gin.Context) {
-	if global.Config.App.DisablePwdLogin {
+	if service.PasswordLoginDisabled(global.Config.App.DisablePwdLogin) {
 		response.Fail(c, 101, response.TranslateMsg(c, "PwdLoginDisabled"))
 		return
 	}
@@ -165,12 +165,20 @@ func (ct *Login) LoginOptions(c *gin.Context) {
 		return
 	}
 	ops := service.AllService.OauthService.GetOauthProviders()
+	passkeySettings, passkeyErr := service.AllService.SettingsService.GetPasskey()
+	emailSettings, emailErr := service.AllService.SettingsService.GetEmailVerification()
+	disablePwd := service.PasswordLoginDisabled(global.Config.App.DisablePwdLogin)
+	passkeyEnabled := passkeyErr == nil && passkeySettings.Enabled
+	emailVerificationEnabled := emailErr == nil && emailSettings.Enabled
 	response.Success(c, gin.H{
-		"ops":          ops,
-		"register":     global.Config.App.Register,
-		"need_captcha": needCaptcha,
-		"disable_pwd":  global.Config.App.DisablePwdLogin,
-		"auto_oidc":    global.Config.App.DisablePwdLogin && len(ops) == 1,
+		"ops":                                ops,
+		"register":                           global.Config.App.Register,
+		"need_captcha":                       needCaptcha,
+		"disable_pwd":                        disablePwd,
+		"auto_oidc":                          disablePwd && len(ops) == 1,
+		"passkey_enabled":                    passkeyEnabled,
+		"passkey_discoverable_login_enabled": passkeyEnabled && passkeySettings.DiscoverableLoginEnabled,
+		"email_verification_enabled":         emailVerificationEnabled,
 	})
 }
 

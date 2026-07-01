@@ -312,6 +312,10 @@ func Migrate(version uint) {
 		&model.AddressBookCollectionRule{},
 		&model.ServerCmd{},
 		&model.DeviceGroup{},
+		&model.Setting{},
+		&model.UserPasskey{},
+		&model.AuthChallenge{},
+		&model.EmailVerificationToken{},
 	)
 	if err != nil {
 		global.Logger.Error("migrate err :=>", err)

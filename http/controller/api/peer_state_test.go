@@ -27,7 +27,7 @@ func setupPeerStateControllerTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open sqlite test db: %v", err)
 	}
-	if err := db.AutoMigrate(&model.Peer{}, &model.LoginLog{}, &model.AddressBook{}, &model.User{}, &model.UserToken{}); err != nil {
+	if err := db.AutoMigrate(&model.Peer{}, &model.LoginLog{}, &model.AddressBook{}, &model.User{}, &model.UserToken{}, &model.Setting{}); err != nil {
 		t.Fatalf("migrate peer state models: %v", err)
 	}
 

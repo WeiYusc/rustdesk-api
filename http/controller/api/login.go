@@ -27,7 +27,7 @@ type Login struct {
 // @Failure 500 {object} response.ErrorResponse
 // @Router /login [post]
 func (l *Login) Login(c *gin.Context) {
-	if global.Config.App.DisablePwdLogin {
+	if service.PasswordLoginDisabled(global.Config.App.DisablePwdLogin) {
 		response.Error(c, response.TranslateMsg(c, "PwdLoginDisabled"))
 		return
 	}

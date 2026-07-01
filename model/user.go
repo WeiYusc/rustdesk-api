@@ -1,9 +1,14 @@
 package model
 
+import "github.com/lejianwen/rustdesk-api/v2/model/custom_types"
+
 type User struct {
 	IdModel
-	Username string `json:"username" gorm:"default:'';not null;uniqueIndex"`
-	Email    string `json:"email" gorm:"default:'';not null;index"`
+	Username           string                 `json:"username" gorm:"default:'';not null;uniqueIndex"`
+	Email              string                 `json:"email" gorm:"default:'';not null;index"`
+	EmailVerifiedAt    *custom_types.AutoTime `json:"email_verified_at"`
+	PendingEmail       string                 `json:"pending_email" gorm:"default:'';not null;index"`
+	WebauthnUserHandle string                 `json:"-" gorm:"default:'';not null;index"`
 	// Email	string     	`json:"email" `
 	Password string     `json:"-" gorm:"default:'';not null;"`
 	Nickname string     `json:"nickname" gorm:"default:'';not null;"`

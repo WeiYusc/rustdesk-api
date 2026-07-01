@@ -24,6 +24,7 @@ func Init(g *gin.Engine) {
 	adg.POST("/user/register", (&admin.User{}).Register)
 
 	ConfigBind(adg)
+	PasskeyBind(adg)
 
 	adg.Use(middleware.BackendUserAuth())
 	adg.POST("/logout", (&admin.Login{}).Logout)
@@ -39,6 +40,8 @@ func Init(g *gin.Engine) {
 	AddressBookCollectionBind(adg)
 	AddressBookCollectionRuleBind(adg)
 	UserTokenBind(adg)
+	SettingsBind(adg)
+	EmailBind(adg)
 
 	//deprecated by ConfigBind
 	//rs := &admin.Rustdesk{}
@@ -235,6 +238,42 @@ func UserTokenBind(rg *gin.RouterGroup) {
 	aR.POST("/delete", cont.Delete)
 	aR.POST("/batchDelete", cont.BatchDelete)
 }
+
+func SettingsBind(rg *gin.RouterGroup) {
+	aR := rg.Group("/settings").Use(middleware.BackendUserAuth(), middleware.AdminPrivilege())
+	cont := &admin.Settings{}
+	aR.GET("/smtp", cont.GetSMTP)
+	aR.POST("/smtp", cont.UpdateSMTP)
+	aR.POST("/smtp/test", cont.TestSMTP)
+	aR.GET("/email-verification", cont.GetEmailVerification)
+	aR.POST("/email-verification", cont.UpdateEmailVerification)
+	aR.GET("/passkey", cont.GetPasskey)
+	aR.POST("/passkey", cont.UpdatePasskey)
+	aR.GET("/auth-policy", cont.GetAuthPolicy)
+	aR.POST("/auth-policy", cont.UpdateAuthPolicy)
+}
+
+func PasskeyBind(rg *gin.RouterGroup) {
+	cont := &admin.Passkey{}
+	rg.POST("/passkey/login/begin", cont.LoginBegin)
+	rg.POST("/passkey/login/finish", cont.LoginFinish)
+	aR := rg.Group("/passkey").Use(middleware.BackendUserAuth())
+	aR.GET("/list", cont.List)
+	aR.POST("/register/begin", cont.RegisterBegin)
+	aR.POST("/register/finish", cont.RegisterFinish)
+	aR.POST("/rename", cont.Rename)
+	aR.POST("/delete", cont.Delete)
+}
+
+func EmailBind(rg *gin.RouterGroup) {
+	cont := &admin.Email{}
+	aR := rg.Group("/email").Use(middleware.BackendUserAuth())
+	aR.POST("/verification/send", cont.SendVerification)
+	aR.POST("/verification/confirm", cont.ConfirmVerification)
+	aR.POST("/change/begin", cont.BeginChange)
+	aR.POST("/change/confirm", cont.ConfirmChange)
+}
+
 func ConfigBind(rg *gin.RouterGroup) {
 	aR := rg.Group("/config")
 	rs := &admin.Config{}

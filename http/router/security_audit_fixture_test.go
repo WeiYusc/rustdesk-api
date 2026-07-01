@@ -51,6 +51,7 @@ func setupAdminSecurityFixture(t *testing.T) adminSecurityFixture {
 		&model.Peer{},
 		&model.Oauth{},
 		&model.ServerCmd{},
+		&model.Setting{},
 	); err != nil {
 		t.Fatalf("migrate security fixture models: %v", err)
 	}
