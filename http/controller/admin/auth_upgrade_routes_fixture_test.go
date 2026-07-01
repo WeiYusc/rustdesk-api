@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -147,6 +148,75 @@ func TestAdminPasskeyRegisterBeginRequiresLoginAndReturnsCreationOptions(t *test
 	assertAuthUpgradeRouteCode(t, finish, 101)
 	if !strings.Contains(finish.Body.String(), "PasskeyVerificationFailed") {
 		t.Fatalf("register finish invalid body = %q", finish.Body.String())
+	}
+}
+
+func TestAdminPasskeyListRenameDeleteUseCurrentUserCredentials(t *testing.T) {
+	engine, db := setupAdminAuthUpgradeRouteFixture(t)
+	isAdmin := true
+	user := &model.User{Username: "admin", Status: model.COMMON_STATUS_ENABLE, IsAdmin: &isAdmin}
+	other := &model.User{Username: "other", Status: model.COMMON_STATUS_ENABLE, IsAdmin: &isAdmin}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatalf("create admin user: %v", err)
+	}
+	if err := db.Create(other).Error; err != nil {
+		t.Fatalf("create other user: %v", err)
+	}
+	if err := db.Create(&model.UserToken{UserId: user.Id, Token: "admin-token", ExpiredAt: time.Now().Add(time.Hour).Unix()}).Error; err != nil {
+		t.Fatalf("create admin token: %v", err)
+	}
+	ownKey := &model.UserPasskey{UserId: user.Id, Name: "Laptop", CredentialID: "credential-own", UserHandle: "stable-handle", PublicKey: "public-key"}
+	otherKey := &model.UserPasskey{UserId: other.Id, Name: "Other", CredentialID: "credential-other", UserHandle: "other-handle", PublicKey: "public-key"}
+	if err := db.Create(ownKey).Error; err != nil {
+		t.Fatalf("create own passkey: %v", err)
+	}
+	if err := db.Create(otherKey).Error; err != nil {
+		t.Fatalf("create other passkey: %v", err)
+	}
+
+	list := httptest.NewRecorder()
+	listReq := httptest.NewRequest(http.MethodGet, "/api/admin/passkey/list", nil)
+	listReq.Header.Set("api-token", "admin-token")
+	engine.ServeHTTP(list, listReq)
+	assertAuthUpgradeRouteCode(t, list, 0)
+	body := list.Body.String()
+	if !strings.Contains(body, "Laptop") || strings.Contains(body, "Other") {
+		t.Fatalf("list body = %q", body)
+	}
+
+	rename := httptest.NewRecorder()
+	renameReq := httptest.NewRequest(http.MethodPost, "/api/admin/passkey/rename", strings.NewReader(`{"id":`+strconv.Itoa(int(ownKey.Id))+`,"name":"Phone"}`))
+	renameReq.Header.Set("Content-Type", "application/json")
+	renameReq.Header.Set("api-token", "admin-token")
+	engine.ServeHTTP(rename, renameReq)
+	assertAuthUpgradeRouteCode(t, rename, 0)
+	var renamed model.UserPasskey
+	if err := db.First(&renamed, ownKey.Id).Error; err != nil {
+		t.Fatalf("load renamed passkey: %v", err)
+	}
+	if renamed.Name != "Phone" {
+		t.Fatalf("renamed passkey name = %q", renamed.Name)
+	}
+
+	deleteOther := httptest.NewRecorder()
+	deleteOtherReq := httptest.NewRequest(http.MethodPost, "/api/admin/passkey/delete", strings.NewReader(`{"id":`+strconv.Itoa(int(otherKey.Id))+`}`))
+	deleteOtherReq.Header.Set("Content-Type", "application/json")
+	deleteOtherReq.Header.Set("api-token", "admin-token")
+	engine.ServeHTTP(deleteOther, deleteOtherReq)
+	assertAuthUpgradeRouteCode(t, deleteOther, 101)
+
+	deleteOwn := httptest.NewRecorder()
+	deleteOwnReq := httptest.NewRequest(http.MethodPost, "/api/admin/passkey/delete", strings.NewReader(`{"id":`+strconv.Itoa(int(ownKey.Id))+`}`))
+	deleteOwnReq.Header.Set("Content-Type", "application/json")
+	deleteOwnReq.Header.Set("api-token", "admin-token")
+	engine.ServeHTTP(deleteOwn, deleteOwnReq)
+	assertAuthUpgradeRouteCode(t, deleteOwn, 0)
+	var count int64
+	if err := db.Model(&model.UserPasskey{}).Where("id = ?", ownKey.Id).Count(&count).Error; err != nil {
+		t.Fatalf("count deleted passkey: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("deleted passkey count = %d", count)
 	}
 }
 

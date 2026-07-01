@@ -109,6 +109,81 @@ func (u passkeyWebAuthnUser) WebAuthnCredentials() []webauthn.Credential {
 	return u.credentials
 }
 
+type PasskeyItem struct {
+	ID             uint       `json:"id"`
+	Name           string     `json:"name"`
+	CredentialID   string     `json:"credential_id"`
+	AAGUID         string     `json:"aaguid,omitempty"`
+	Transports     []string   `json:"transports"`
+	BackupEligible bool       `json:"backup_eligible"`
+	BackupState    bool       `json:"backup_state"`
+	CloneWarning   bool       `json:"clone_warning"`
+	LastUsedAt     *time.Time `json:"last_used_at"`
+	CreatedAt      any        `json:"created_at"`
+	UpdatedAt      any        `json:"updated_at"`
+}
+
+func (s *PasskeyService) List(userID uint) ([]PasskeyItem, error) {
+	var passkeys []model.UserPasskey
+	if err := global.DB.Where("user_id = ?", userID).Order("created_at desc").Find(&passkeys).Error; err != nil {
+		return nil, err
+	}
+	items := make([]PasskeyItem, 0, len(passkeys))
+	for _, passkey := range passkeys {
+		items = append(items, PasskeyItem{
+			ID:             passkey.Id,
+			Name:           passkey.Name,
+			CredentialID:   passkey.CredentialID,
+			AAGUID:         passkey.AAGUID,
+			Transports:     splitTransports(passkey.Transports),
+			BackupEligible: passkey.BackupEligible,
+			BackupState:    passkey.BackupState,
+			CloneWarning:   passkey.CloneWarning,
+			LastUsedAt:     passkey.LastUsedAt,
+			CreatedAt:      passkey.CreatedAt,
+			UpdatedAt:      passkey.UpdatedAt,
+		})
+	}
+	return items, nil
+}
+
+func (s *PasskeyService) Rename(userID uint, passkeyID uint, name string) error {
+	name, err := normalizePasskeyName(name)
+	if err != nil || passkeyID == 0 {
+		return fmt.Errorf("ParamsError")
+	}
+	var passkey model.UserPasskey
+	if err := global.DB.Where("id = ? and user_id = ?", passkeyID, userID).First(&passkey).Error; err != nil {
+		return fmt.Errorf("PasskeyNotFound")
+	}
+	if passkey.Name == name {
+		return nil
+	}
+	return global.DB.Model(&passkey).Update("name", name).Error
+}
+
+func (s *PasskeyService) Delete(userID uint, passkeyID uint) error {
+	if passkeyID == 0 {
+		return fmt.Errorf("ParamsError")
+	}
+	res := global.DB.Where("id = ? and user_id = ?", passkeyID, userID).Delete(&model.UserPasskey{})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected != 1 {
+		return fmt.Errorf("PasskeyNotFound")
+	}
+	return nil
+}
+
+func normalizePasskeyName(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" || len([]rune(name)) > 128 {
+		return "", fmt.Errorf("ParamsError")
+	}
+	return name, nil
+}
+
 func (s *PasskeyService) BeginRegistration(user *model.User, ip string) (*PublicKeyCredentialCreationOptions, error) {
 	if user == nil || user.Id == 0 {
 		return nil, fmt.Errorf("invalid user")
@@ -185,7 +260,7 @@ func (s *PasskeyService) BeginLogin(ip string) (*PublicKeyCredentialRequestOptio
 	return requestOptionsFromWebAuthn(assertion), nil
 }
 
-func (s *PasskeyService) FinishRegistration(user *model.User, payload []byte, ip string) error {
+func (s *PasskeyService) FinishRegistration(user *model.User, name string, payload []byte, ip string) error {
 	if user == nil || user.Id == 0 {
 		return fmt.Errorf("PasskeyVerificationFailed")
 	}
@@ -205,7 +280,7 @@ func (s *PasskeyService) FinishRegistration(user *model.User, payload []byte, ip
 		if err := markChallengeUsed(tx, challenge.Id); err != nil {
 			return err
 		}
-		return persistPasskeyCredential(tx, user, credential)
+		return persistPasskeyCredential(tx, user, name, credential)
 	}); err != nil {
 		return fmt.Errorf("PasskeyVerificationFailed")
 	}
@@ -262,7 +337,7 @@ func (defaultPasskeyVerifier) FinishRegistration(user *model.User, challenge *mo
 	if err != nil {
 		return nil, err
 	}
-	request := httptest.NewRequest("POST", "/api/admin/passkey/register/finish", bytes.NewReader(payload))
+	request := httptest.NewRequest("POST", "/api/admin/passkey/register/finish", bytes.NewReader(passkeyCredentialPayload(payload)))
 	return wa.FinishRegistration(passkeyWebAuthnUser{user: user, credentials: credentials}, data.Session, request)
 }
 
@@ -279,7 +354,7 @@ func (defaultPasskeyVerifier) FinishLogin(challenge *model.AuthChallenge, payloa
 	if err != nil {
 		return nil, nil, err
 	}
-	request := httptest.NewRequest("POST", "/api/admin/passkey/login/finish", bytes.NewReader(payload))
+	request := httptest.NewRequest("POST", "/api/admin/passkey/login/finish", bytes.NewReader(passkeyCredentialPayload(payload)))
 	validatedUser, credential, err := wa.FinishPasskeyLogin(loadDiscoverablePasskeyUser, data.Session, request)
 	if err != nil {
 		return nil, nil, err
@@ -291,20 +366,40 @@ func (defaultPasskeyVerifier) FinishLogin(challenge *model.AuthChallenge, payloa
 	return adapter.user, credential, nil
 }
 
+func passkeyCredentialPayload(payload []byte) []byte {
+	var request struct {
+		Credential json.RawMessage `json:"credential"`
+	}
+	if err := json.Unmarshal(payload, &request); err != nil || len(request.Credential) == 0 {
+		return payload
+	}
+	return request.Credential
+}
+
 func challengeFromPayload(payload []byte) (string, error) {
 	var request struct {
-		Challenge string `json:"challenge"`
-		Response  struct {
+		ChallengeID string `json:"challenge_id"`
+		Challenge   string `json:"challenge"`
+		Credential  *struct {
+			Response struct {
+				ClientDataJSON string `json:"clientDataJSON"`
+			} `json:"response"`
+		} `json:"credential"`
+		Response struct {
 			ClientDataJSON string `json:"clientDataJSON"`
 		} `json:"response"`
 	}
 	if err := json.Unmarshal(payload, &request); err != nil {
 		return "", err
 	}
-	if request.Response.ClientDataJSON == "" {
+	clientDataValue := request.Response.ClientDataJSON
+	if clientDataValue == "" && request.Credential != nil {
+		clientDataValue = request.Credential.Response.ClientDataJSON
+	}
+	if clientDataValue == "" {
 		return "", fmt.Errorf("missing challenge or clientDataJSON")
 	}
-	clientDataJSON, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(request.Response.ClientDataJSON, "="))
+	clientDataJSON, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(clientDataValue, "="))
 	if err != nil {
 		return "", err
 	}
@@ -316,6 +411,9 @@ func challengeFromPayload(payload []byte) (string, error) {
 	}
 	if clientData.Challenge == "" {
 		return "", fmt.Errorf("missing challenge")
+	}
+	if request.ChallengeID != "" && request.ChallengeID != clientData.Challenge {
+		return "", fmt.Errorf("challenge mismatch")
 	}
 	return clientData.Challenge, nil
 }
@@ -520,14 +618,18 @@ func webauthnCredentialFromModel(passkey model.UserPasskey) webauthn.Credential 
 	}
 }
 
-func persistPasskeyCredential(tx *gorm.DB, user *model.User, credential *webauthn.Credential) error {
+func persistPasskeyCredential(tx *gorm.DB, user *model.User, name string, credential *webauthn.Credential) error {
 	if credential == nil || len(credential.ID) == 0 || len(credential.PublicKey) == 0 {
 		return fmt.Errorf("invalid credential")
 	}
 	now := time.Now()
+	passkeyName, err := normalizePasskeyName(name)
+	if err != nil {
+		passkeyName = "Passkey"
+	}
 	passkey := &model.UserPasskey{
 		UserId:          user.Id,
-		Name:            "Passkey",
+		Name:            passkeyName,
 		CredentialID:    base64.RawURLEncoding.EncodeToString(credential.ID),
 		UserHandle:      user.WebauthnUserHandle,
 		PublicKey:       base64.RawURLEncoding.EncodeToString(credential.PublicKey),

@@ -242,7 +242,7 @@ func TestPasskeyServiceFinishRegistrationRejectsInvalidPayloadWithoutConsumingCh
 	if err != nil {
 		t.Fatalf("BeginRegistration error: %v", err)
 	}
-	if err := AllService.PasskeyService.FinishRegistration(user, []byte(`{"challenge":"`+options.Challenge+`"}`), "127.0.0.1"); err == nil {
+	if err := AllService.PasskeyService.FinishRegistration(user, "", []byte(`{"challenge":"`+options.Challenge+`"}`), "127.0.0.1"); err == nil {
 		t.Fatalf("FinishRegistration invalid payload succeeded")
 	}
 	var count int64
@@ -286,7 +286,7 @@ func TestPasskeyServiceFinishLoginRejectsInvalidPayloadWithoutIssuingToken(t *te
 	}
 }
 
-func TestPasskeyServiceFinishRegistrationPersistsVerifiedCredentialAndConsumesChallenge(t *testing.T) {
+func TestPasskeyServiceFinishRegistrationPersistsVerifiedCredentialNameAndConsumesChallenge(t *testing.T) {
 	db := setupPasskeyServiceTestDB(t)
 	originalVerifier := passkeyVerify
 	t.Cleanup(func() { passkeyVerify = originalVerifier })
@@ -307,14 +307,14 @@ func TestPasskeyServiceFinishRegistrationPersistsVerifiedCredentialAndConsumesCh
 		Flags:           webauthn.CredentialFlags{BackupEligible: true, BackupState: true},
 	}}
 	payload := passkeyClientDataPayload(t, options.Challenge)
-	if err := AllService.PasskeyService.FinishRegistration(user, payload, "127.0.0.1"); err != nil {
+	if err := AllService.PasskeyService.FinishRegistration(user, "Mac Touch ID", payload, "127.0.0.1"); err != nil {
 		t.Fatalf("FinishRegistration error: %v", err)
 	}
 	var saved model.UserPasskey
 	if err := db.Where("user_id = ?", user.Id).First(&saved).Error; err != nil {
 		t.Fatalf("reload saved passkey: %v", err)
 	}
-	if saved.CredentialID != base64.RawURLEncoding.EncodeToString([]byte("credential-id-1")) || saved.PublicKey == "" || saved.SignCount != 7 {
+	if saved.Name != "Mac Touch ID" || saved.CredentialID != base64.RawURLEncoding.EncodeToString([]byte("credential-id-1")) || saved.PublicKey == "" || saved.SignCount != 7 {
 		t.Fatalf("saved passkey = %#v", saved)
 	}
 	if saved.UserHandle != user.WebauthnUserHandle || !saved.BackupEligible || !saved.BackupState {
@@ -328,7 +328,6 @@ func TestPasskeyServiceFinishRegistrationPersistsVerifiedCredentialAndConsumesCh
 		t.Fatalf("successful registration did not consume challenge")
 	}
 }
-
 func TestPasskeyServiceFinishRegistrationRejectsReusedChallenge(t *testing.T) {
 	db := setupPasskeyServiceTestDB(t)
 	originalVerifier := passkeyVerify
@@ -347,14 +346,14 @@ func TestPasskeyServiceFinishRegistrationRejectsReusedChallenge(t *testing.T) {
 		PublicKey: []byte("public-key-cbor"),
 	}}
 	payload := passkeyClientDataPayload(t, options.Challenge)
-	if err := AllService.PasskeyService.FinishRegistration(user, payload, "127.0.0.1"); err != nil {
+	if err := AllService.PasskeyService.FinishRegistration(user, "", payload, "127.0.0.1"); err != nil {
 		t.Fatalf("first FinishRegistration error: %v", err)
 	}
 	passkeyVerify = stubPasskeyVerifier{registrationCredential: &webauthn.Credential{
 		ID:        []byte("credential-id-reuse-second"),
 		PublicKey: []byte("public-key-cbor"),
 	}}
-	if err := AllService.PasskeyService.FinishRegistration(user, payload, "127.0.0.1"); err == nil {
+	if err := AllService.PasskeyService.FinishRegistration(user, "", payload, "127.0.0.1"); err == nil {
 		t.Fatalf("second FinishRegistration with reused challenge succeeded")
 	}
 	var count int64

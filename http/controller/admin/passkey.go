@@ -1,6 +1,8 @@
 package admin
 
 import (
+	"encoding/json"
+
 	"github.com/gin-gonic/gin"
 	"github.com/lejianwen/rustdesk-api/v2/http/response"
 	"github.com/lejianwen/rustdesk-api/v2/model"
@@ -15,7 +17,7 @@ func (p *Passkey) LoginBegin(c *gin.Context) {
 		response.Fail(c, 101, err.Error())
 		return
 	}
-	response.Success(c, options)
+	response.Success(c, gin.H{"challenge_id": options.Challenge, "public_key": options})
 }
 
 func (p *Passkey) LoginFinish(c *gin.Context) {
@@ -33,17 +35,22 @@ func (p *Passkey) LoginFinish(c *gin.Context) {
 }
 
 func (p *Passkey) List(c *gin.Context) {
-	response.Success(c, []interface{}{})
-}
-
-func (p *Passkey) RegisterBegin(c *gin.Context) {
-	curUser, ok := c.Get("curUser")
+	curUser, ok := currentPasskeyUser(c)
 	if !ok {
 		response.Fail(c, 403, response.TranslateMsg(c, "NeedLogin"))
 		return
 	}
-	user, ok := curUser.(*model.User)
-	if !ok || user == nil || user.Id == 0 {
+	items, err := service.AllService.PasskeyService.List(curUser.Id)
+	if err != nil {
+		response.Fail(c, 101, err.Error())
+		return
+	}
+	response.Success(c, items)
+}
+
+func (p *Passkey) RegisterBegin(c *gin.Context) {
+	user, ok := currentPasskeyUser(c)
+	if !ok {
 		response.Fail(c, 403, response.TranslateMsg(c, "NeedLogin"))
 		return
 	}
@@ -52,17 +59,12 @@ func (p *Passkey) RegisterBegin(c *gin.Context) {
 		response.Fail(c, 101, err.Error())
 		return
 	}
-	response.Success(c, options)
+	response.Success(c, gin.H{"challenge_id": options.Challenge, "public_key": options})
 }
 
 func (p *Passkey) RegisterFinish(c *gin.Context) {
-	curUser, ok := c.Get("curUser")
+	user, ok := currentPasskeyUser(c)
 	if !ok {
-		response.Fail(c, 403, response.TranslateMsg(c, "NeedLogin"))
-		return
-	}
-	user, ok := curUser.(*model.User)
-	if !ok || user == nil || user.Id == 0 {
 		response.Fail(c, 403, response.TranslateMsg(c, "NeedLogin"))
 		return
 	}
@@ -71,7 +73,7 @@ func (p *Passkey) RegisterFinish(c *gin.Context) {
 		response.Fail(c, 101, "PasskeyVerificationFailed")
 		return
 	}
-	if err := service.AllService.PasskeyService.FinishRegistration(user, payload, c.ClientIP()); err != nil {
+	if err := service.AllService.PasskeyService.FinishRegistration(user, passkeyNameFromPayload(payload), payload, c.ClientIP()); err != nil {
 		response.Fail(c, 101, "PasskeyVerificationFailed")
 		return
 	}
@@ -79,9 +81,64 @@ func (p *Passkey) RegisterFinish(c *gin.Context) {
 }
 
 func (p *Passkey) Rename(c *gin.Context) {
-	response.Fail(c, 101, "PasskeyNotImplemented")
+	user, ok := currentPasskeyUser(c)
+	if !ok {
+		response.Fail(c, 403, response.TranslateMsg(c, "NeedLogin"))
+		return
+	}
+	var form struct {
+		ID   uint   `json:"id"`
+		Name string `json:"name"`
+	}
+	if err := c.ShouldBindJSON(&form); err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError"))
+		return
+	}
+	if err := service.AllService.PasskeyService.Rename(user.Id, form.ID, form.Name); err != nil {
+		response.Fail(c, 101, err.Error())
+		return
+	}
+	response.Success(c, nil)
 }
 
 func (p *Passkey) Delete(c *gin.Context) {
-	response.Fail(c, 101, "PasskeyNotImplemented")
+	user, ok := currentPasskeyUser(c)
+	if !ok {
+		response.Fail(c, 403, response.TranslateMsg(c, "NeedLogin"))
+		return
+	}
+	var form struct {
+		ID uint `json:"id"`
+	}
+	if err := c.ShouldBindJSON(&form); err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError"))
+		return
+	}
+	if err := service.AllService.PasskeyService.Delete(user.Id, form.ID); err != nil {
+		response.Fail(c, 101, err.Error())
+		return
+	}
+	response.Success(c, nil)
+}
+
+func currentPasskeyUser(c *gin.Context) (*model.User, bool) {
+	curUser, ok := c.Get("curUser")
+	if !ok {
+		return nil, false
+	}
+	user, ok := curUser.(*model.User)
+	if !ok || user == nil || user.Id == 0 {
+		return nil, false
+	}
+	return user, true
+}
+
+func passkeyNameFromPayload(payload []byte) string {
+	var form struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(payload, &form); err != nil {
+		return ""
+	}
+	return form.Name
 }
