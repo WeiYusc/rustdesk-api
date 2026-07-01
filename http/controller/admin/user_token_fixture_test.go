@@ -89,7 +89,7 @@ func setupAdminUserTokenFixture(t *testing.T) adminUserTokenFixture {
 func createAdminUserTokenFixtureUser(t *testing.T, db *gorm.DB, username string, isAdmin bool) *model.User {
 	t.Helper()
 
-	user := &model.User{Username: username, Status: model.COMMON_STATUS_ENABLE, IsAdmin: &isAdmin}
+	user := &model.User{Username: username, Nickname: username + " nick", Status: model.COMMON_STATUS_ENABLE, IsAdmin: &isAdmin}
 	if err := db.Create(user).Error; err != nil {
 		t.Fatalf("create user %s: %v", username, err)
 	}
@@ -144,9 +144,14 @@ func TestAdminUserTokenListRequiresAdminAndFiltersByUser(t *testing.T) {
 			PageSize   int `json:"page_size"`
 			Total      int `json:"total"`
 			UserTokens []struct {
-				Id     uint   `json:"id"`
-				UserId uint   `json:"user_id"`
-				Token  string `json:"token"`
+				Id     uint `json:"id"`
+				UserId uint `json:"user_id"`
+				User   struct {
+					Id       uint   `json:"id"`
+					Username string `json:"username"`
+					Nickname string `json:"nickname"`
+				} `json:"user"`
+				Token string `json:"token"`
 			} `json:"list"`
 		} `json:"data"`
 	}
@@ -161,8 +166,8 @@ func TestAdminUserTokenListRequiresAdminAndFiltersByUser(t *testing.T) {
 	}
 	wantIDs := []uint{fixture.nonAdminTokens[1].Id, fixture.nonAdminTokens[0].Id, fixture.nonAdminAuthToken.Id}
 	for index, row := range payload.Data.UserTokens {
-		if row.UserId != fixture.nonAdminUser.Id {
-			t.Fatalf("row user_id = %d, want %d", row.UserId, fixture.nonAdminUser.Id)
+		if row.UserId != fixture.nonAdminUser.Id || row.User.Id != fixture.nonAdminUser.Id || row.User.Username != fixture.nonAdminUser.Username || row.User.Nickname != fixture.nonAdminUser.Nickname {
+			t.Fatalf("row user summary = %#v, want user %d/%s", row, fixture.nonAdminUser.Id, fixture.nonAdminUser.Username)
 		}
 		if row.Id != wantIDs[index] {
 			t.Fatalf("row ids = %#v, want id desc order %#v", payload.Data.UserTokens, wantIDs)

@@ -494,6 +494,7 @@ func (us *UserService) TokenList(page uint, size uint, f func(tx *gorm.DB)) *mod
 	tx.Count(&res.Total)
 	tx.Scopes(Paginate(page, size))
 	tx.Find(&res.UserTokens)
+	attachUserTokenUserSummaries(res.UserTokens)
 	return res
 }
 

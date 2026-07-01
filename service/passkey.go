@@ -287,7 +287,8 @@ func (s *PasskeyService) FinishRegistration(user *model.User, name string, paylo
 	return nil
 }
 
-func (s *PasskeyService) FinishLogin(payload []byte, ip string) (*model.User, string, error) {
+func (s *PasskeyService) FinishLogin(payload []byte, ip string, platform string) (*model.User, string, error) {
+	platform = normalizeLoginPlatform(platform)
 	challengeID, err := challengeFromPayload(payload)
 	if err != nil {
 		return nil, "", fmt.Errorf("PasskeyVerificationFailed")
@@ -308,7 +309,7 @@ func (s *PasskeyService) FinishLogin(payload []byte, ip string) (*model.User, st
 		if err := updatePasskeyCredentialAfterLogin(tx, user.Id, credential); err != nil {
 			return err
 		}
-		ut, err := createPasskeyLoginToken(tx, user, ip)
+		ut, err := createPasskeyLoginToken(tx, user, ip, platform)
 		if err != nil {
 			return err
 		}
@@ -680,7 +681,16 @@ func markChallengeUsed(tx *gorm.DB, challengeID uint) error {
 	return nil
 }
 
-func createPasskeyLoginToken(tx *gorm.DB, user *model.User, ip string) (*model.UserToken, error) {
+func normalizeLoginPlatform(platform string) string {
+	switch platform {
+	case "windows", "mac", "linux", "android", "ios", "web":
+		return platform
+	default:
+		return ""
+	}
+}
+
+func createPasskeyLoginToken(tx *gorm.DB, user *model.User, ip string, platform string) (*model.UserToken, error) {
 	if user == nil || user.Id == 0 {
 		return nil, fmt.Errorf("invalid user")
 	}
@@ -701,6 +711,7 @@ func createPasskeyLoginToken(tx *gorm.DB, user *model.User, ip string) (*model.U
 		Client:      model.LoginLogClientWebAdmin,
 		Ip:          ip,
 		Type:        model.LoginLogTypeAccount,
+		Platform:    platform,
 		UserTokenId: ut.Id,
 	}
 	if err := tx.Create(loginLog).Error; err != nil {

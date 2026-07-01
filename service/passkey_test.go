@@ -88,6 +88,27 @@ func (s stubPasskeyVerifier) FinishLogin(challenge *model.AuthChallenge, payload
 	return s.loginUser, s.loginCredential, nil
 }
 
+func TestCreatePasskeyLoginTokenRecordsPlatform(t *testing.T) {
+	db := setupPasskeyServiceTestDB(t)
+	isAdmin := true
+	user := &model.User{Username: "passkey-login-user", Email: "passkey@example.test", Status: model.COMMON_STATUS_ENABLE, IsAdmin: &isAdmin}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	_, err := createPasskeyLoginToken(db, user, "198.51.100.8", "linux")
+	if err != nil {
+		t.Fatalf("create passkey login token: %v", err)
+	}
+	var log model.LoginLog
+	if err := db.Where("user_id = ?", user.Id).First(&log).Error; err != nil {
+		t.Fatalf("find login log: %v", err)
+	}
+	if log.Client != model.LoginLogClientWebAdmin || log.Type != model.LoginLogTypeAccount || log.Ip != "198.51.100.8" || log.Platform != "linux" {
+		t.Fatalf("passkey login log = %#v", log)
+	}
+}
+
 func TestPasskeyServiceRegisterBeginCreatesResidentKeyOptionsAndStableUserHandle(t *testing.T) {
 	db := setupPasskeyServiceTestDB(t)
 	isAdmin := true
@@ -274,7 +295,7 @@ func TestPasskeyServiceFinishLoginRejectsInvalidPayloadWithoutIssuingToken(t *te
 	if err != nil {
 		t.Fatalf("BeginLogin error: %v", err)
 	}
-	if _, _, err := AllService.PasskeyService.FinishLogin([]byte(`{"challenge":"`+options.Challenge+`"}`), "127.0.0.1"); err == nil {
+	if _, _, err := AllService.PasskeyService.FinishLogin([]byte(`{"challenge":"`+options.Challenge+`"}`), "127.0.0.1", "linux"); err == nil {
 		t.Fatalf("FinishLogin invalid payload succeeded")
 	}
 	var challenge model.AuthChallenge
@@ -386,10 +407,10 @@ func TestPasskeyServiceFinishLoginRejectsReusedChallengeWithoutSecondToken(t *te
 		Authenticator: webauthn.Authenticator{SignCount: 9},
 	}}
 	payload := passkeyClientDataPayload(t, options.Challenge)
-	if _, _, err := AllService.PasskeyService.FinishLogin(payload, "127.0.0.1"); err != nil {
+	if _, _, err := AllService.PasskeyService.FinishLogin(payload, "127.0.0.1", "linux"); err != nil {
 		t.Fatalf("first FinishLogin error: %v", err)
 	}
-	if _, _, err := AllService.PasskeyService.FinishLogin(payload, "127.0.0.1"); err == nil {
+	if _, _, err := AllService.PasskeyService.FinishLogin(payload, "127.0.0.1", "linux"); err == nil {
 		t.Fatalf("second FinishLogin with reused challenge succeeded")
 	}
 	var tokenCount int64
@@ -422,7 +443,7 @@ func TestPasskeyServiceFinishLoginUpdatesCredentialAndIssuesToken(t *testing.T) 
 		Authenticator: webauthn.Authenticator{SignCount: 9},
 		Flags:         webauthn.CredentialFlags{BackupEligible: true},
 	}}
-	validatedUser, token, err := AllService.PasskeyService.FinishLogin(passkeyClientDataPayload(t, options.Challenge), "127.0.0.1")
+	validatedUser, token, err := AllService.PasskeyService.FinishLogin(passkeyClientDataPayload(t, options.Challenge), "127.0.0.1", "linux")
 	if err != nil {
 		t.Fatalf("FinishLogin error: %v", err)
 	}

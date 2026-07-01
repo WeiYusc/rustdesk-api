@@ -27,6 +27,7 @@ func (us *LoginLogService) List(page, pageSize uint, where func(tx *gorm.DB)) (r
 	tx.Count(&res.Total)
 	tx.Scopes(Paginate(page, pageSize))
 	tx.Find(&res.LoginLogs)
+	attachLoginLogUserSummaries(res.LoginLogs)
 	return
 }
 

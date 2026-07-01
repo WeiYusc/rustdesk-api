@@ -92,7 +92,7 @@ func setupAdminLoginLogFixture(t *testing.T) adminLoginLogFixture {
 func createAdminLoginLogFixtureUser(t *testing.T, db *gorm.DB, username string, isAdmin bool, token string) *model.User {
 	t.Helper()
 
-	user := &model.User{Username: username, Status: model.COMMON_STATUS_ENABLE, IsAdmin: &isAdmin}
+	user := &model.User{Username: username, Nickname: username + " nick", Status: model.COMMON_STATUS_ENABLE, IsAdmin: &isAdmin}
 	if err := db.Create(user).Error; err != nil {
 		t.Fatalf("create user %s: %v", username, err)
 	}
@@ -140,8 +140,13 @@ func TestAdminLoginLogRoutesRequireAdminAndListFiltersByUser(t *testing.T) {
 			PageSize  int `json:"page_size"`
 			Total     int `json:"total"`
 			LoginLogs []struct {
-				Id       uint   `json:"id"`
-				UserId   uint   `json:"user_id"`
+				Id     uint `json:"id"`
+				UserId uint `json:"user_id"`
+				User   struct {
+					Id       uint   `json:"id"`
+					Username string `json:"username"`
+					Nickname string `json:"nickname"`
+				} `json:"user"`
 				Client   string `json:"client"`
 				DeviceId string `json:"device_id"`
 				Uuid     string `json:"uuid"`
@@ -163,7 +168,7 @@ func TestAdminLoginLogRoutesRequireAdminAndListFiltersByUser(t *testing.T) {
 	if payload.Data.LoginLogs[0].Id != fixture.loginLogs[1].Id || payload.Data.LoginLogs[0].DeviceId != "owner-new" || payload.Data.LoginLogs[1].Id != fixture.loginLogs[0].Id || payload.Data.LoginLogs[1].DeviceId != "owner-old" {
 		t.Fatalf("login-log order = %#v", payload.Data.LoginLogs)
 	}
-	if payload.Data.LoginLogs[0].UserId != fixture.owner.Id || payload.Data.LoginLogs[0].Client != model.LoginLogClientWeb || payload.Data.LoginLogs[0].Uuid != "uuid-owner-new" || payload.Data.LoginLogs[0].Ip != "192.0.2.11" || payload.Data.LoginLogs[0].Type != model.LoginLogTypeOauth || payload.Data.LoginLogs[0].Platform != "web" {
+	if payload.Data.LoginLogs[0].UserId != fixture.owner.Id || payload.Data.LoginLogs[0].User.Id != fixture.owner.Id || payload.Data.LoginLogs[0].User.Username != fixture.owner.Username || payload.Data.LoginLogs[0].User.Nickname != fixture.owner.Nickname || payload.Data.LoginLogs[0].Client != model.LoginLogClientWeb || payload.Data.LoginLogs[0].Uuid != "uuid-owner-new" || payload.Data.LoginLogs[0].Ip != "192.0.2.11" || payload.Data.LoginLogs[0].Type != model.LoginLogTypeOauth || payload.Data.LoginLogs[0].Platform != "web" {
 		t.Fatalf("login-log first row = %#v", payload.Data.LoginLogs[0])
 	}
 }

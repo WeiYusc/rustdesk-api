@@ -26,7 +26,8 @@ func (p *Passkey) LoginFinish(c *gin.Context) {
 		response.Fail(c, 101, "PasskeyVerificationFailed")
 		return
 	}
-	user, token, err := service.AllService.PasskeyService.FinishLogin(payload, c.ClientIP())
+	platform := passkeyPlatformFromPayload(payload)
+	user, token, err := service.AllService.PasskeyService.FinishLogin(payload, c.ClientIP(), platform)
 	if err != nil {
 		response.Fail(c, 101, "PasskeyVerificationFailed")
 		return
@@ -131,6 +132,16 @@ func currentPasskeyUser(c *gin.Context) (*model.User, bool) {
 		return nil, false
 	}
 	return user, true
+}
+
+func passkeyPlatformFromPayload(payload []byte) string {
+	var form struct {
+		Platform string `json:"platform"`
+	}
+	if err := json.Unmarshal(payload, &form); err != nil {
+		return ""
+	}
+	return form.Platform
 }
 
 func passkeyNameFromPayload(payload []byte) string {
