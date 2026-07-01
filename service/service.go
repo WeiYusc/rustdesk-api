@@ -25,6 +25,7 @@ type Service struct {
 	*LdapService
 	*AppService
 	*SettingsService
+	*PasskeyService
 }
 
 type Dependencies struct {

@@ -11,7 +11,7 @@ type UserPasskey struct {
 	IdModel
 	UserId          uint       `json:"user_id" gorm:"not null;index"`
 	Name            string     `json:"name" gorm:"default:'';not null;size:128"`
-	CredentialID    string     `json:"credential_id" gorm:"uniqueIndex;not null;type:text"`
+	CredentialID    string     `json:"credential_id" gorm:"uniqueIndex;not null;size:512"`
 	UserHandle      string     `json:"-" gorm:"not null;size:128;index"`
 	PublicKey       string     `json:"-" gorm:"type:text;not null"`
 	AttestationType string     `json:"attestation_type" gorm:"default:'';not null;size:64"`

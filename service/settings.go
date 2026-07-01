@@ -175,6 +175,15 @@ func (s *SettingsService) SavePasskey(settings PasskeySettings, updatedBy uint) 
 	if err := settings.validate(); err != nil {
 		return err
 	}
+	policy, err := s.GetAuthPolicy()
+	if err != nil {
+		return err
+	}
+	if policy.DisablePasswordLogin {
+		if err := s.ensurePasswordDisableHasFallbackWithPasskey(settings); err != nil {
+			return err
+		}
+	}
 	return s.saveJSONSetting(SettingKeyPasskey, settings, false, updatedBy)
 }
 
@@ -187,7 +196,56 @@ func (s *SettingsService) GetAuthPolicy() (AuthPolicySettings, error) {
 }
 
 func (s *SettingsService) SaveAuthPolicy(settings AuthPolicySettings, updatedBy uint) error {
+	if settings.DisablePasswordLogin {
+		if err := s.ensurePasswordDisableHasFallback(); err != nil {
+			return err
+		}
+	}
 	return s.saveJSONSetting(SettingKeyAuthPolicy, settings, false, updatedBy)
+}
+
+func (s *SettingsService) ensurePasswordDisableHasFallback() error {
+	passkeySettings, err := s.GetPasskey()
+	if err != nil {
+		return err
+	}
+	return s.ensurePasswordDisableHasFallbackWithPasskey(passkeySettings)
+}
+
+func (s *SettingsService) ensurePasswordDisableHasFallbackWithPasskey(passkeySettings PasskeySettings) error {
+	if s.hasConfiguredOauthProvider() {
+		return nil
+	}
+	if !passkeySettings.Enabled || !passkeySettings.DiscoverableLoginEnabled {
+		return fmt.Errorf("PasswordLoginDisableRequiresFallback")
+	}
+	if err := passkeySettings.validate(); err != nil {
+		return err
+	}
+	var count int64
+	err := DB.Table("user_passkeys").
+		Joins("join users on users.id = user_passkeys.user_id").
+		Where("users.status = ? and coalesce(users.is_admin, false) = ?", model.COMMON_STATUS_ENABLE, true).
+		Count(&count).Error
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return fmt.Errorf("PasswordLoginDisableRequiresFallback")
+	}
+	return nil
+}
+
+func (s *SettingsService) hasConfiguredOauthProvider() bool {
+	var count int64
+	err := DB.Model(&model.Oauth{}).
+		Joins("join user_thirds on user_thirds.oauth_type = oauths.oauth_type and user_thirds.op = oauths.op").
+		Joins("join users on users.id = user_thirds.user_id").
+		Where("oauths.oauth_type <> '' and oauths.client_id <> '' and oauths.client_secret <> ''").
+		Where("user_thirds.open_id <> ''").
+		Where("users.status = ? and coalesce(users.is_admin, false) = ?", model.COMMON_STATUS_ENABLE, true).
+		Count(&count).Error
+	return err == nil && count > 0
 }
 
 func PasswordLoginDisabled(configDisabled bool) bool {

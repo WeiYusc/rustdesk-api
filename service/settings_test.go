@@ -14,7 +14,7 @@ func setupSettingsServiceTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open sqlite settings test db: %v", err)
 	}
-	if err := db.AutoMigrate(&model.Setting{}); err != nil {
+	if err := db.AutoMigrate(&model.Setting{}, &model.User{}, &model.UserPasskey{}, &model.Oauth{}, &model.UserThird{}); err != nil {
 		t.Fatalf("migrate settings model: %v", err)
 	}
 	DB = db
@@ -175,6 +175,17 @@ func TestSettingsServicePasswordLoginDisabledHelper(t *testing.T) {
 	if PasswordLoginDisabled(false) {
 		t.Fatalf("PasswordLoginDisabled(false) with no persisted policy = true, want false")
 	}
+	isAdmin := true
+	adminUser := &model.User{Username: "admin", Status: model.COMMON_STATUS_ENABLE, IsAdmin: &isAdmin, WebauthnUserHandle: "stable-handle"}
+	if err := db.Create(adminUser).Error; err != nil {
+		t.Fatalf("create admin fallback user: %v", err)
+	}
+	if err := svc.SavePasskey(PasskeySettings{Enabled: true, RPID: "rd.plumire.cyou", AllowedOrigins: []string{"https://rd.plumire.cyou"}, DiscoverableLoginEnabled: true, ResidentKeyRequirement: ResidentKeyRequired}, 1); err != nil {
+		t.Fatalf("save passkey fallback settings: %v", err)
+	}
+	if err := db.Create(&model.UserPasskey{UserId: adminUser.Id, Name: "admin key", CredentialID: "credential-id", UserHandle: "stable-handle", PublicKey: "public-key"}).Error; err != nil {
+		t.Fatalf("create admin fallback passkey: %v", err)
+	}
 	if err := svc.SaveAuthPolicy(AuthPolicySettings{DisablePasswordLogin: true}, 1); err != nil {
 		t.Fatalf("SaveAuthPolicy disable error: %v", err)
 	}
@@ -187,6 +198,86 @@ func TestSettingsServicePasswordLoginDisabledHelper(t *testing.T) {
 	}
 	if !PasswordLoginDisabled(false) {
 		t.Fatalf("PasswordLoginDisabled(false) with corrupt persisted policy = false, want fail-closed true")
+	}
+}
+
+func TestSettingsServiceRejectsPasswordDisableWithoutViableAdminLoginPath(t *testing.T) {
+	db := setupSettingsServiceTestDB(t)
+	svc := &SettingsService{}
+	AllService = &Service{SettingsService: svc}
+
+	if err := svc.SaveAuthPolicy(AuthPolicySettings{DisablePasswordLogin: true}, 1); err == nil {
+		t.Fatalf("SaveAuthPolicy disabled password with no fallback login path succeeded")
+	}
+
+	isAdmin := true
+	adminUser := &model.User{Username: "admin", Status: model.COMMON_STATUS_ENABLE, IsAdmin: &isAdmin, WebauthnUserHandle: "stable-handle"}
+	if err := db.Create(adminUser).Error; err != nil {
+		t.Fatalf("create admin: %v", err)
+	}
+	if err := svc.SavePasskey(PasskeySettings{Enabled: true, RPID: "rd.plumire.cyou", AllowedOrigins: []string{"https://rd.plumire.cyou"}, DiscoverableLoginEnabled: true, ResidentKeyRequirement: ResidentKeyRequired}, 1); err != nil {
+		t.Fatalf("save passkey settings: %v", err)
+	}
+	if err := svc.SaveAuthPolicy(AuthPolicySettings{DisablePasswordLogin: true}, 1); err == nil {
+		t.Fatalf("SaveAuthPolicy disabled password with passkey enabled but no admin credential succeeded")
+	}
+	if err := db.Create(&model.UserPasskey{UserId: adminUser.Id, Name: "admin key", CredentialID: "credential-id", UserHandle: "stable-handle", PublicKey: "public-key"}).Error; err != nil {
+		t.Fatalf("create admin passkey: %v", err)
+	}
+	if err := svc.SaveAuthPolicy(AuthPolicySettings{DisablePasswordLogin: true}, 1); err != nil {
+		t.Fatalf("SaveAuthPolicy with admin passkey fallback error: %v", err)
+	}
+}
+
+func TestSettingsServiceRejectsPasskeyDisableWhenPasswordLoginAlreadyDisabled(t *testing.T) {
+	db := setupSettingsServiceTestDB(t)
+	svc := &SettingsService{}
+	AllService = &Service{SettingsService: svc}
+	isAdmin := true
+	adminUser := &model.User{Username: "admin", Status: model.COMMON_STATUS_ENABLE, IsAdmin: &isAdmin, WebauthnUserHandle: "stable-handle"}
+	if err := db.Create(adminUser).Error; err != nil {
+		t.Fatalf("create admin: %v", err)
+	}
+	if err := db.Create(&model.UserPasskey{UserId: adminUser.Id, Name: "admin key", CredentialID: "credential-id", UserHandle: "stable-handle", PublicKey: "public-key"}).Error; err != nil {
+		t.Fatalf("create admin passkey: %v", err)
+	}
+	if err := svc.SavePasskey(PasskeySettings{Enabled: true, RPID: "rd.plumire.cyou", AllowedOrigins: []string{"https://rd.plumire.cyou"}, DiscoverableLoginEnabled: true, ResidentKeyRequirement: ResidentKeyRequired}, 1); err != nil {
+		t.Fatalf("save initial passkey settings: %v", err)
+	}
+	if err := svc.SaveAuthPolicy(AuthPolicySettings{DisablePasswordLogin: true}, 1); err != nil {
+		t.Fatalf("disable password with passkey fallback: %v", err)
+	}
+
+	if err := svc.SavePasskey(PasskeySettings{Enabled: false, RPID: "rd.plumire.cyou", AllowedOrigins: []string{"https://rd.plumire.cyou"}, DiscoverableLoginEnabled: true, ResidentKeyRequirement: ResidentKeyRequired}, 1); err == nil {
+		t.Fatalf("SavePasskey disabled the only fallback while password login was disabled")
+	}
+	if err := svc.SavePasskey(PasskeySettings{Enabled: true, RPID: "rd.plumire.cyou", AllowedOrigins: []string{"https://rd.plumire.cyou"}, DiscoverableLoginEnabled: false, ResidentKeyRequirement: ResidentKeyRequired}, 1); err == nil {
+		t.Fatalf("SavePasskey disabled discoverable login while password login was disabled")
+	}
+}
+
+func TestSettingsServiceRejectsPasswordDisableWithOauthProviderButNoAdminBinding(t *testing.T) {
+	db := setupSettingsServiceTestDB(t)
+	svc := &SettingsService{}
+	AllService = &Service{SettingsService: svc}
+
+	if err := db.Create(&model.Oauth{Op: model.OauthTypeOidc, OauthType: model.OauthTypeOidc, ClientId: "client", ClientSecret: "secret"}).Error; err != nil {
+		t.Fatalf("create oauth provider: %v", err)
+	}
+	if err := svc.SaveAuthPolicy(AuthPolicySettings{DisablePasswordLogin: true}, 1); err == nil {
+		t.Fatalf("SaveAuthPolicy disabled password with configured oauth provider but no admin binding succeeded")
+	}
+
+	isAdmin := true
+	adminUser := &model.User{Username: "admin", Status: model.COMMON_STATUS_ENABLE, IsAdmin: &isAdmin}
+	if err := db.Create(adminUser).Error; err != nil {
+		t.Fatalf("create admin: %v", err)
+	}
+	if err := db.Create(&model.UserThird{UserId: adminUser.Id, OauthType: model.OauthTypeOidc, Op: model.OauthTypeOidc, OauthUser: model.OauthUser{OpenId: "admin-sub"}}).Error; err != nil {
+		t.Fatalf("create admin oauth binding: %v", err)
+	}
+	if err := svc.SaveAuthPolicy(AuthPolicySettings{DisablePasswordLogin: true}, 1); err != nil {
+		t.Fatalf("SaveAuthPolicy with admin oauth binding fallback error: %v", err)
 	}
 }
 

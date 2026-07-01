@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/gin-gonic/gin"
@@ -23,16 +24,17 @@ import (
 	"gorm.io/gorm"
 )
 
-func setupAdminAuthUpgradeRouteFixture(t *testing.T) *gin.Engine {
+func setupAdminAuthUpgradeRouteFixture(t *testing.T) (*gin.Engine, *gorm.DB) {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite auth upgrade route db: %v", err)
 	}
-	if err := db.AutoMigrate(&model.Setting{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.UserToken{}, &model.Setting{}, &model.UserPasskey{}, &model.AuthChallenge{}); err != nil {
 		t.Fatalf("migrate auth upgrade route db: %v", err)
 	}
 	global.Config = config.Config{Lang: "en"}
+	global.DB = db
 	global.Logger = logrus.New()
 	bundle := i18n.NewBundle(language.English)
 	bundle.RegisterUnmarshalFunc("toml", toml.Unmarshal)
@@ -47,11 +49,11 @@ func setupAdminAuthUpgradeRouteFixture(t *testing.T) *gin.Engine {
 	group := engine.Group("/api/admin")
 	router.PasskeyBind(group)
 	router.EmailBind(group)
-	return engine
+	return engine, db
 }
 
 func TestAdminPasskeyLoginBeginDisabledByDefault(t *testing.T) {
-	engine := setupAdminAuthUpgradeRouteFixture(t)
+	engine, _ := setupAdminAuthUpgradeRouteFixture(t)
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/api/admin/passkey/login/begin", strings.NewReader(`{}`))
 	request.Header.Set("Content-Type", "application/json")
@@ -62,8 +64,94 @@ func TestAdminPasskeyLoginBeginDisabledByDefault(t *testing.T) {
 	}
 }
 
+func TestAdminPasskeyLoginBeginReturnsRequestOptionsWhenEnabled(t *testing.T) {
+	engine, db := setupAdminAuthUpgradeRouteFixture(t)
+	if err := service.AllService.SettingsService.SavePasskey(service.PasskeySettings{
+		Enabled:                  true,
+		RPName:                   "RustDesk Test Admin",
+		RPID:                     "rd.plumire.cyou",
+		AllowedOrigins:           []string{"https://rd.plumire.cyou"},
+		UserVerification:         service.UserVerificationPreferred,
+		DiscoverableLoginEnabled: true,
+		ResidentKeyRequirement:   service.ResidentKeyRequired,
+	}, 1); err != nil {
+		t.Fatalf("save passkey settings: %v", err)
+	}
+	if err := db.Create(&model.UserPasskey{UserId: 1, Name: "test key", CredentialID: "credential-id", UserHandle: "stable-handle", PublicKey: "public-key"}).Error; err != nil {
+		t.Fatalf("create passkey: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/admin/passkey/login/begin", strings.NewReader(`{}`))
+	request.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(recorder, request)
+
+	assertAuthUpgradeRouteCode(t, recorder, 0)
+	if !strings.Contains(recorder.Body.String(), `"rpId":"rd.plumire.cyou"`) || strings.Contains(recorder.Body.String(), "PasskeyDomainVerificationPending") {
+		t.Fatalf("login begin body = %q", recorder.Body.String())
+	}
+
+	finish := httptest.NewRecorder()
+	finishReq := httptest.NewRequest(http.MethodPost, "/api/admin/passkey/login/finish", strings.NewReader(`{"challenge":"bad"}`))
+	finishReq.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(finish, finishReq)
+	assertAuthUpgradeRouteCode(t, finish, 101)
+	if !strings.Contains(finish.Body.String(), "PasskeyVerificationFailed") {
+		t.Fatalf("login finish invalid body = %q", finish.Body.String())
+	}
+}
+
+func TestAdminPasskeyRegisterBeginRequiresLoginAndReturnsCreationOptions(t *testing.T) {
+	engine, db := setupAdminAuthUpgradeRouteFixture(t)
+	if err := service.AllService.SettingsService.SavePasskey(service.PasskeySettings{
+		Enabled:                  true,
+		RPName:                   "RustDesk Test Admin",
+		RPID:                     "rd.plumire.cyou",
+		AllowedOrigins:           []string{"https://rd.plumire.cyou"},
+		UserVerification:         service.UserVerificationPreferred,
+		DiscoverableLoginEnabled: true,
+		ResidentKeyRequirement:   service.ResidentKeyRequired,
+	}, 1); err != nil {
+		t.Fatalf("save passkey settings: %v", err)
+	}
+	isAdmin := true
+	user := &model.User{Username: "admin", Status: model.COMMON_STATUS_ENABLE, IsAdmin: &isAdmin}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatalf("create admin user: %v", err)
+	}
+	if err := db.Create(&model.UserToken{UserId: user.Id, Token: "admin-token", ExpiredAt: time.Now().Add(time.Hour).Unix()}).Error; err != nil {
+		t.Fatalf("create admin token: %v", err)
+	}
+
+	unauth := httptest.NewRecorder()
+	unauthReq := httptest.NewRequest(http.MethodPost, "/api/admin/passkey/register/begin", strings.NewReader(`{}`))
+	unauthReq.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(unauth, unauthReq)
+	assertAuthUpgradeRouteCode(t, unauth, 403)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/admin/passkey/register/begin", strings.NewReader(`{}`))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("api-token", "admin-token")
+	engine.ServeHTTP(recorder, request)
+	assertAuthUpgradeRouteCode(t, recorder, 0)
+	if !strings.Contains(recorder.Body.String(), `"residentKey":"required"`) || !strings.Contains(recorder.Body.String(), `"rp":{"id":"rd.plumire.cyou"`) {
+		t.Fatalf("register begin body = %q", recorder.Body.String())
+	}
+
+	finish := httptest.NewRecorder()
+	finishReq := httptest.NewRequest(http.MethodPost, "/api/admin/passkey/register/finish", strings.NewReader(`{"challenge":"bad"}`))
+	finishReq.Header.Set("Content-Type", "application/json")
+	finishReq.Header.Set("api-token", "admin-token")
+	engine.ServeHTTP(finish, finishReq)
+	assertAuthUpgradeRouteCode(t, finish, 101)
+	if !strings.Contains(finish.Body.String(), "PasskeyVerificationFailed") {
+		t.Fatalf("register finish invalid body = %q", finish.Body.String())
+	}
+}
+
 func TestAdminEmailVerificationRoutesRequireLogin(t *testing.T) {
-	engine := setupAdminAuthUpgradeRouteFixture(t)
+	engine, _ := setupAdminAuthUpgradeRouteFixture(t)
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/api/admin/email/verification/send", strings.NewReader(`{}`))
 	request.Header.Set("Content-Type", "application/json")

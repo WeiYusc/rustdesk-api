@@ -23,16 +23,17 @@ import (
 	"gorm.io/gorm"
 )
 
-func setupAdminLoginOptionsFixture(t *testing.T) *gin.Engine {
+func setupAdminLoginOptionsFixture(t *testing.T) (*gin.Engine, *gorm.DB) {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite login options db: %v", err)
 	}
-	if err := db.AutoMigrate(&model.Setting{}, &model.Oauth{}); err != nil {
+	if err := db.AutoMigrate(&model.Setting{}, &model.Oauth{}, &model.User{}, &model.UserPasskey{}); err != nil {
 		t.Fatalf("migrate login options fixture models: %v", err)
 	}
 	global.Config = config.Config{Lang: "en"}
+	global.DB = db
 	global.Logger = logrus.New()
 	bundle := i18n.NewBundle(language.English)
 	bundle.RegisterUnmarshalFunc("toml", toml.Unmarshal)
@@ -46,16 +47,24 @@ func setupAdminLoginOptionsFixture(t *testing.T) *gin.Engine {
 	engine := gin.New()
 	group := engine.Group("/api/admin")
 	router.LoginBind(group)
-	return engine
+	return engine, db
 }
 
 func TestAdminLoginOptionsExposePasskeyAndEmailFlags(t *testing.T) {
-	engine := setupAdminLoginOptionsFixture(t)
+	engine, db := setupAdminLoginOptionsFixture(t)
 	if err := service.AllService.SettingsService.SavePasskey(service.PasskeySettings{Enabled: true, RPID: "admin.example.test", AllowedOrigins: []string{"https://admin.example.test"}, DiscoverableLoginEnabled: true}, 1); err != nil {
 		t.Fatalf("save passkey settings: %v", err)
 	}
 	if err := service.AllService.SettingsService.SaveEmailVerification(service.EmailVerificationSettings{Enabled: true}, 1); err != nil {
 		t.Fatalf("save email settings: %v", err)
+	}
+	isAdmin := true
+	adminUser := &model.User{Username: "admin", Status: model.COMMON_STATUS_ENABLE, IsAdmin: &isAdmin, WebauthnUserHandle: "stable-handle"}
+	if err := db.Create(adminUser).Error; err != nil {
+		t.Fatalf("create admin user: %v", err)
+	}
+	if err := db.Create(&model.UserPasskey{UserId: adminUser.Id, Name: "admin key", CredentialID: "credential-id", UserHandle: "stable-handle", PublicKey: "public-key"}).Error; err != nil {
+		t.Fatalf("create admin passkey: %v", err)
 	}
 	if err := service.AllService.SettingsService.SaveAuthPolicy(service.AuthPolicySettings{DisablePasswordLogin: true}, 1); err != nil {
 		t.Fatalf("save auth policy settings: %v", err)
