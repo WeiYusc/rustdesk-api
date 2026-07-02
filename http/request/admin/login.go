@@ -8,6 +8,10 @@ type Login struct {
 	CaptchaId string `json:"captcha_id,omitempty"`
 }
 
+type ForgotPasswordRequest struct {
+	Email string `json:"email" validate:"required,email" label:"邮箱"`
+}
+
 type LoginLogQuery struct {
 	UserId int `form:"user_id"`
 	IsMy   int `form:"is_my"`

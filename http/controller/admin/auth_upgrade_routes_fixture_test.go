@@ -220,6 +220,40 @@ func TestAdminPasskeyListRenameDeleteUseCurrentUserCredentials(t *testing.T) {
 	}
 }
 
+func TestAdminEmailVerificationSendExplainsDisabledAndSMTPUnavailable(t *testing.T) {
+	engine, db := setupAdminAuthUpgradeRouteFixture(t)
+	user := &model.User{Username: "email-user", Email: "email-user@example.test", Status: model.COMMON_STATUS_ENABLE}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatalf("create email user: %v", err)
+	}
+	if err := db.Create(&model.UserToken{UserId: user.Id, Token: "email-token", ExpiredAt: time.Now().Add(time.Hour).Unix()}).Error; err != nil {
+		t.Fatalf("create email token: %v", err)
+	}
+
+	disabled := httptest.NewRecorder()
+	disabledReq := httptest.NewRequest(http.MethodPost, "/api/admin/email/verification/send", strings.NewReader(`{}`))
+	disabledReq.Header.Set("Content-Type", "application/json")
+	disabledReq.Header.Set("api-token", "email-token")
+	engine.ServeHTTP(disabled, disabledReq)
+	assertAuthUpgradeRouteCode(t, disabled, 101)
+	if !strings.Contains(disabled.Body.String(), "Email verification is disabled") {
+		t.Fatalf("disabled email verification body = %q", disabled.Body.String())
+	}
+
+	if err := service.AllService.SettingsService.SaveEmailVerification(service.EmailVerificationSettings{Enabled: true}, user.Id); err != nil {
+		t.Fatalf("save enabled email verification: %v", err)
+	}
+	smtpMissing := httptest.NewRecorder()
+	smtpMissingReq := httptest.NewRequest(http.MethodPost, "/api/admin/email/verification/send", strings.NewReader(`{}`))
+	smtpMissingReq.Header.Set("Content-Type", "application/json")
+	smtpMissingReq.Header.Set("api-token", "email-token")
+	engine.ServeHTTP(smtpMissing, smtpMissingReq)
+	assertAuthUpgradeRouteCode(t, smtpMissing, 101)
+	if !strings.Contains(smtpMissing.Body.String(), "SMTP is not enabled") {
+		t.Fatalf("SMTP missing email verification body = %q", smtpMissing.Body.String())
+	}
+}
+
 func TestAdminEmailVerificationRoutesRequireLogin(t *testing.T) {
 	engine, _ := setupAdminAuthUpgradeRouteFixture(t)
 	recorder := httptest.NewRecorder()

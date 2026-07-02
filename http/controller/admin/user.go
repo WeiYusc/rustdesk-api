@@ -366,7 +366,12 @@ func (ct *User) GroupUsers(c *gin.Context) {
 
 // Register
 func (ct *User) Register(c *gin.Context) {
-	if !global.Config.App.Register {
+	policy, err := service.AllService.SettingsService.GetRegisterPolicy()
+	if err != nil {
+		response.Fail(c, 101, err.Error())
+		return
+	}
+	if !policy.Enabled {
 		response.Fail(c, 101, response.TranslateMsg(c, "RegisterClosed"))
 		return
 	}
@@ -384,7 +389,7 @@ func (ct *User) Register(c *gin.Context) {
 		response.Fail(c, 101, response.TranslateMsg(c, "PasswordMismatch"))
 		return
 	}
-	regStatus := model.StatusCode(global.Config.App.RegisterStatus)
+	regStatus := model.StatusCode(policy.DefaultStatus)
 	// 注册状态可能未配置，默认启用
 	if regStatus != model.COMMON_STATUS_DISABLED && regStatus != model.COMMON_STATUS_ENABLE {
 		regStatus = model.COMMON_STATUS_ENABLE

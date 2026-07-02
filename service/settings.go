@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/lejianwen/rustdesk-api/v2/global"
 	"github.com/lejianwen/rustdesk-api/v2/model"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -17,6 +18,7 @@ const (
 	SettingKeyEmailVerification = "email_verification"
 	SettingKeyPasskey           = "passkey"
 	SettingKeyAuthPolicy        = "auth_policy"
+	SettingKeyRegisterPolicy    = "register_policy"
 
 	SMTPSecurityNone     = "none"
 	SMTPSecurityStartTLS = "starttls"
@@ -72,6 +74,11 @@ type AuthPolicySettings struct {
 	DisablePasswordLogin bool `json:"disable_password_login"`
 }
 
+type RegisterPolicySettings struct {
+	Enabled       bool `json:"enabled"`
+	DefaultStatus int  `json:"default_status"`
+}
+
 func DefaultSMTPSettings() SMTPSettings {
 	return SMTPSettings{
 		Port:           587,
@@ -100,6 +107,14 @@ func DefaultPasskeySettings() PasskeySettings {
 
 func DefaultAuthPolicySettings() AuthPolicySettings {
 	return AuthPolicySettings{}
+}
+
+func DefaultRegisterPolicySettings() RegisterPolicySettings {
+	status := global.Config.App.RegisterStatus
+	if status != int(model.COMMON_STATUS_ENABLE) && status != int(model.COMMON_STATUS_DISABLED) {
+		status = int(model.COMMON_STATUS_ENABLE)
+	}
+	return RegisterPolicySettings{Enabled: global.Config.App.Register, DefaultStatus: status}
 }
 
 func (s *SettingsService) GetSMTP() (SMTPSettings, error) {
@@ -204,6 +219,23 @@ func (s *SettingsService) SaveAuthPolicy(settings AuthPolicySettings, updatedBy 
 	return s.saveJSONSetting(SettingKeyAuthPolicy, settings, false, updatedBy)
 }
 
+func (s *SettingsService) GetRegisterPolicy() (RegisterPolicySettings, error) {
+	settings := DefaultRegisterPolicySettings()
+	if err := s.loadJSONSetting(SettingKeyRegisterPolicy, &settings); err != nil {
+		return RegisterPolicySettings{}, err
+	}
+	settings.applyDefaults()
+	return settings, nil
+}
+
+func (s *SettingsService) SaveRegisterPolicy(settings RegisterPolicySettings, updatedBy uint) error {
+	settings.applyDefaults()
+	if err := settings.validate(); err != nil {
+		return err
+	}
+	return s.saveJSONSetting(SettingKeyRegisterPolicy, settings, false, updatedBy)
+}
+
 func (s *SettingsService) ensurePasswordDisableHasFallback() error {
 	passkeySettings, err := s.GetPasskey()
 	if err != nil {
@@ -298,6 +330,19 @@ func ignoreRecordNotFound(err error) error {
 	return err
 }
 
+func (s *RegisterPolicySettings) applyDefaults() {
+	if s.DefaultStatus == 0 {
+		s.DefaultStatus = int(model.COMMON_STATUS_ENABLE)
+	}
+}
+
+func (s RegisterPolicySettings) validate() error {
+	if s.DefaultStatus != int(model.COMMON_STATUS_ENABLE) && s.DefaultStatus != int(model.COMMON_STATUS_DISABLED) {
+		return fmt.Errorf("unsupported register default_status: %d", s.DefaultStatus)
+	}
+	return nil
+}
+
 func (s *SMTPSettings) applyDefaults() {
 	if s.Port == 0 {
 		s.Port = 587
@@ -308,6 +353,10 @@ func (s *SMTPSettings) applyDefaults() {
 	if s.TimeoutSeconds == 0 {
 		s.TimeoutSeconds = 10
 	}
+}
+
+func (s SMTPSettings) Ready() bool {
+	return s.Enabled && strings.TrimSpace(s.Host) != "" && s.Port > 0 && strings.TrimSpace(s.FromEmail) != ""
 }
 
 func (s SMTPSettings) validate() error {

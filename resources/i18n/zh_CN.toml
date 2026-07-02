@@ -210,3 +210,23 @@ other = "登录暂时被限制。"
 description = "用户名已存在。"
 one = "用户名已存在。"
 other = "用户名已存在。"
+
+[EmailVerificationDisabled]
+description = "EmailVerificationDisabled"
+other = "邮箱验证功能未启用，请先在系统设置中启用邮箱验证。"
+
+[SMTPNotConfigured]
+description = "SMTPNotConfigured"
+other = "SMTP 未启用或未配置完整，无法发送验证码。"
+
+[EmailVerificationNotImplemented]
+description = "EmailVerificationNotImplemented"
+other = "邮箱验证码发送功能尚未实现。"
+
+[SMTPServiceUnavailable]
+description = "SMTPServiceUnavailable"
+other = "管理员尚未配置SMTP，服务不可用。"
+
+[ForgotPasswordNotImplemented]
+description = "ForgotPasswordNotImplemented"
+other = "忘记密码邮件发送功能尚未实现。"

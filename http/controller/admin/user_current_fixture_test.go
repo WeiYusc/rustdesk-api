@@ -40,7 +40,7 @@ func setupAdminUserFixture(t *testing.T) adminUserFixture {
 	if err != nil {
 		t.Fatalf("open sqlite test db: %v", err)
 	}
-	if err := db.AutoMigrate(&model.User{}, &model.UserToken{}, &model.LoginLog{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.UserToken{}, &model.LoginLog{}, &model.Setting{}); err != nil {
 		t.Fatalf("migrate admin user models: %v", err)
 	}
 
@@ -152,6 +152,27 @@ func TestAdminUserRegisterAcceptsMatchingConfirmPassword(t *testing.T) {
 	}
 	if !reflect.DeepEqual(payload.Data.RouteNames, model.UserRouteNames) {
 		t.Fatalf("registered route_names = %#v, want %#v", payload.Data.RouteNames, model.UserRouteNames)
+	}
+}
+
+func TestAdminUserRegisterUsesPersistedRegisterPolicy(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fixture := setupAdminUserFixture(t)
+
+	if err := service.AllService.SettingsService.SaveRegisterPolicy(service.RegisterPolicySettings{Enabled: false, DefaultStatus: int(model.COMMON_STATUS_ENABLE)}, fixture.adminUser.Id); err != nil {
+		t.Fatalf("save disabled register policy: %v", err)
+	}
+	closed := adminUserRequest(fixture.router, http.MethodPost, "/api/admin/user/register", `{"username":"policy-closed","email":"closed@example.test","password":"pass1234","confirm_password":"pass1234"}`, "")
+	assertAdminUserResponseCode(t, closed.Body.Bytes(), 101)
+
+	if err := service.AllService.SettingsService.SaveRegisterPolicy(service.RegisterPolicySettings{Enabled: true, DefaultStatus: int(model.COMMON_STATUS_DISABLED)}, fixture.adminUser.Id); err != nil {
+		t.Fatalf("save disabled-status register policy: %v", err)
+	}
+	waiting := adminUserRequest(fixture.router, http.MethodPost, "/api/admin/user/register", `{"username":"policy-wait","email":"wait@example.test","password":"pass1234","confirm_password":"pass1234"}`, "")
+	assertAdminUserResponseCode(t, waiting.Body.Bytes(), 101)
+	created := service.AllService.UserService.InfoByUsername("policy-wait")
+	if created.Id == 0 || created.Status != model.COMMON_STATUS_DISABLED {
+		t.Fatalf("registered user = %#v, want disabled user waiting for admin confirm", created)
 	}
 }
 

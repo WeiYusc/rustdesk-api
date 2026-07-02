@@ -217,3 +217,23 @@ other = "El inicio de sesión está temporalmente bloqueado."
 description = "Username already exists."
 one = "El nombre de usuario ya existe."
 other = "El nombre de usuario ya existe."
+
+[EmailVerificationDisabled]
+description = "EmailVerificationDisabled"
+other = "Email verification is disabled. Please enable email verification in system settings first."
+
+[SMTPNotConfigured]
+description = "SMTPNotConfigured"
+other = "SMTP is not enabled or fully configured, so verification emails cannot be sent."
+
+[EmailVerificationNotImplemented]
+description = "EmailVerificationNotImplemented"
+other = "Email verification sending is not implemented yet."
+
+[SMTPServiceUnavailable]
+description = "SMTPServiceUnavailable"
+other = "The administrator has not configured SMTP, so this service is unavailable."
+
+[ForgotPasswordNotImplemented]
+description = "ForgotPasswordNotImplemented"
+other = "Forgot password email sending is not implemented yet."

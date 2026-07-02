@@ -167,12 +167,14 @@ func (ct *Login) LoginOptions(c *gin.Context) {
 	ops := service.AllService.OauthService.GetOauthProviders()
 	passkeySettings, passkeyErr := service.AllService.SettingsService.GetPasskey()
 	emailSettings, emailErr := service.AllService.SettingsService.GetEmailVerification()
+	registerPolicy, registerErr := service.AllService.SettingsService.GetRegisterPolicy()
 	disablePwd := service.PasswordLoginDisabled(global.Config.App.DisablePwdLogin)
 	passkeyEnabled := passkeyErr == nil && passkeySettings.Enabled
 	emailVerificationEnabled := emailErr == nil && emailSettings.Enabled
+	registerEnabled := registerErr == nil && registerPolicy.Enabled
 	response.Success(c, gin.H{
 		"ops":                                ops,
-		"register":                           global.Config.App.Register,
+		"register":                           registerEnabled,
 		"need_captcha":                       needCaptcha,
 		"disable_pwd":                        disablePwd,
 		"auto_oidc":                          disablePwd && len(ops) == 1,
@@ -180,6 +182,30 @@ func (ct *Login) LoginOptions(c *gin.Context) {
 		"passkey_discoverable_login_enabled": passkeyEnabled && passkeySettings.DiscoverableLoginEnabled,
 		"email_verification_enabled":         emailVerificationEnabled,
 	})
+}
+
+func (ct *Login) ForgotPasswordRequest(c *gin.Context) {
+	f := &admin.ForgotPasswordRequest{}
+	if err := c.ShouldBindJSON(f); err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+err.Error())
+		return
+	}
+	if errList := global.Validator.ValidStruct(c, f); len(errList) > 0 {
+		response.Fail(c, 101, errList[0])
+		return
+	}
+
+	smtpSettings, err := service.AllService.SettingsService.GetSMTP()
+	if err != nil {
+		response.Fail(c, 101, err.Error())
+		return
+	}
+	if !smtpSettings.Ready() {
+		response.Fail(c, 101, response.TranslateMsg(c, "SMTPServiceUnavailable"))
+		return
+	}
+
+	response.Fail(c, 101, response.TranslateMsg(c, "ForgotPasswordNotImplemented"))
 }
 
 // OidcAuth

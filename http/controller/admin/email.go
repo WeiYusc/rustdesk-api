@@ -15,20 +15,29 @@ func (e *Email) SendVerification(c *gin.Context) {
 		return
 	}
 	if !settings.Enabled {
-		response.Fail(c, 101, "EmailVerificationDisabled")
+		response.Fail(c, 101, response.TranslateMsg(c, "EmailVerificationDisabled"))
 		return
 	}
-	response.Fail(c, 101, "EmailVerificationNotImplemented")
+	smtpSettings, err := service.AllService.SettingsService.GetSMTP()
+	if err != nil {
+		response.Fail(c, 101, err.Error())
+		return
+	}
+	if !smtpSettings.Ready() {
+		response.Fail(c, 101, response.TranslateMsg(c, "SMTPNotConfigured"))
+		return
+	}
+	response.Fail(c, 101, response.TranslateMsg(c, "EmailVerificationNotImplemented"))
 }
 
 func (e *Email) ConfirmVerification(c *gin.Context) {
-	response.Fail(c, 101, "EmailVerificationNotImplemented")
+	response.Fail(c, 101, response.TranslateMsg(c, "EmailVerificationNotImplemented"))
 }
 
 func (e *Email) BeginChange(c *gin.Context) {
-	response.Fail(c, 101, "EmailVerificationNotImplemented")
+	response.Fail(c, 101, response.TranslateMsg(c, "EmailVerificationNotImplemented"))
 }
 
 func (e *Email) ConfirmChange(c *gin.Context) {
-	response.Fail(c, 101, "EmailVerificationNotImplemented")
+	response.Fail(c, 101, response.TranslateMsg(c, "EmailVerificationNotImplemented"))
 }

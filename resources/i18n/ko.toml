@@ -211,3 +211,23 @@ other = "로그인이 일시적으로 제한되었습니다."
 description = "Username already exists."
 one = "사용자 이름이 이미 존재합니다."
 other = "사용자 이름이 이미 존재합니다."
+
+[EmailVerificationDisabled]
+description = "EmailVerificationDisabled"
+other = "Email verification is disabled. Please enable email verification in system settings first."
+
+[SMTPNotConfigured]
+description = "SMTPNotConfigured"
+other = "SMTP is not enabled or fully configured, so verification emails cannot be sent."
+
+[EmailVerificationNotImplemented]
+description = "EmailVerificationNotImplemented"
+other = "Email verification sending is not implemented yet."
+
+[SMTPServiceUnavailable]
+description = "SMTPServiceUnavailable"
+other = "The administrator has not configured SMTP, so this service is unavailable."
+
+[ForgotPasswordNotImplemented]
+description = "ForgotPasswordNotImplemented"
+other = "Forgot password email sending is not implemented yet."

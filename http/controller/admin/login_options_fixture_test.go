@@ -92,3 +92,32 @@ func TestAdminLoginOptionsExposePasskeyAndEmailFlags(t *testing.T) {
 		t.Fatalf("login-options payload = %#v", payload)
 	}
 }
+
+func TestAdminLoginOptionsReflectPersistedRegisterPolicy(t *testing.T) {
+	engine, _ := setupAdminLoginOptionsFixture(t)
+	global.Config.App.Register = true
+	global.Config.App.RegisterStatus = int(model.COMMON_STATUS_ENABLE)
+
+	if err := service.AllService.SettingsService.SaveRegisterPolicy(service.RegisterPolicySettings{Enabled: false, DefaultStatus: int(model.COMMON_STATUS_ENABLE)}, 1); err != nil {
+		t.Fatalf("save register policy: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/admin/login-options", strings.NewReader(""))
+	engine.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("login-options status = %d, want %d; body=%q", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+	var payload struct {
+		Code int `json:"code"`
+		Data struct {
+			Register bool `json:"register"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal login-options: %v; body=%q", err, recorder.Body.String())
+	}
+	if payload.Code != 0 || payload.Data.Register {
+		t.Fatalf("login-options register payload = %#v, want register false from persisted policy", payload)
+	}
+}

@@ -217,3 +217,23 @@ other = "登入暫時受限。"
 description = "使用者名稱已存在。"
 one = "使用者名稱已存在。"
 other = "使用者名稱已存在。"
+
+[EmailVerificationDisabled]
+description = "EmailVerificationDisabled"
+other = "郵箱驗證功能未啟用，請先在系統設定中啟用郵箱驗證。"
+
+[SMTPNotConfigured]
+description = "SMTPNotConfigured"
+other = "SMTP 未啟用或未完整設定，無法發送驗證碼。"
+
+[EmailVerificationNotImplemented]
+description = "EmailVerificationNotImplemented"
+other = "郵箱驗證碼發送功能尚未實作。"
+
+[SMTPServiceUnavailable]
+description = "SMTPServiceUnavailable"
+other = "管理員尚未設定 SMTP，服務不可用。"
+
+[ForgotPasswordNotImplemented]
+description = "ForgotPasswordNotImplemented"
+other = "忘記密碼郵件寄送功能尚未實作。"

@@ -95,6 +95,44 @@ func TestAdminSettingsRoutesRequireAdminPrivilege(t *testing.T) {
 	assertAdminSettingsResponseCode(t, nonAdmin, 403)
 }
 
+func TestAdminSettingsRegisterPolicyReadUpdate(t *testing.T) {
+	fixture := setupAdminSettingsFixture(t)
+
+	getDefault := adminSettingsRequest(fixture.router, http.MethodGet, "/api/admin/settings/register", "", fixture.adminToken)
+	assertAdminSettingsResponseCode(t, getDefault, 0)
+	var defaultPayload struct {
+		Code int `json:"code"`
+		Data struct {
+			Enabled       bool `json:"enabled"`
+			DefaultStatus int  `json:"default_status"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(getDefault.Body.Bytes(), &defaultPayload); err != nil {
+		t.Fatalf("unmarshal default register payload: %v; body=%q", err, getDefault.Body.String())
+	}
+	if defaultPayload.Data.Enabled || defaultPayload.Data.DefaultStatus != int(model.COMMON_STATUS_ENABLE) {
+		t.Fatalf("default register payload = %#v", defaultPayload.Data)
+	}
+
+	update := adminSettingsRequest(fixture.router, http.MethodPost, "/api/admin/settings/register", `{"enabled":true,"default_status":2}`, fixture.adminToken)
+	assertAdminSettingsResponseCode(t, update, 0)
+
+	getUpdated := adminSettingsRequest(fixture.router, http.MethodGet, "/api/admin/settings/register", "", fixture.adminToken)
+	assertAdminSettingsResponseCode(t, getUpdated, 0)
+	var updatedPayload struct {
+		Data struct {
+			Enabled       bool `json:"enabled"`
+			DefaultStatus int  `json:"default_status"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(getUpdated.Body.Bytes(), &updatedPayload); err != nil {
+		t.Fatalf("unmarshal updated register payload: %v; body=%q", err, getUpdated.Body.String())
+	}
+	if !updatedPayload.Data.Enabled || updatedPayload.Data.DefaultStatus != int(model.COMMON_STATUS_DISABLED) {
+		t.Fatalf("updated register payload = %#v", updatedPayload.Data)
+	}
+}
+
 func TestAdminSettingsSMTPReadUpdateAndMaskPassword(t *testing.T) {
 	fixture := setupAdminSettingsFixture(t)
 

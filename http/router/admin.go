@@ -70,6 +70,7 @@ func RustdeskCmdBind(adg *gin.RouterGroup) {
 func LoginBind(rg *gin.RouterGroup) {
 	cont := &admin.Login{}
 	rg.POST("/login", cont.Login)
+	rg.POST("/forgot-password/request", cont.ForgotPasswordRequest)
 	rg.GET("/captcha", cont.Captcha)
 	rg.GET("/login-options", cont.LoginOptions)
 	rg.POST("/oidc/auth", cont.OidcAuth)
@@ -242,6 +243,8 @@ func UserTokenBind(rg *gin.RouterGroup) {
 func SettingsBind(rg *gin.RouterGroup) {
 	aR := rg.Group("/settings").Use(middleware.BackendUserAuth(), middleware.AdminPrivilege())
 	cont := &admin.Settings{}
+	aR.GET("/register", cont.GetRegisterPolicy)
+	aR.POST("/register", cont.UpdateRegisterPolicy)
 	aR.GET("/smtp", cont.GetSMTP)
 	aR.POST("/smtp", cont.UpdateSMTP)
 	aR.POST("/smtp/test", cont.TestSMTP)

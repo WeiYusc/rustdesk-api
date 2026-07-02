@@ -3,6 +3,8 @@ package service
 import (
 	"testing"
 
+	"github.com/lejianwen/rustdesk-api/v2/config"
+	"github.com/lejianwen/rustdesk-api/v2/global"
 	"github.com/lejianwen/rustdesk-api/v2/model"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -44,6 +46,42 @@ func TestSettingsServiceReturnsSMTPDefaultsWithoutPersistedRow(t *testing.T) {
 	}
 	if settings.Password != "" || settings.HasPassword {
 		t.Fatalf("default SMTP password/has_password = %q/%v, want empty/false", settings.Password, settings.HasPassword)
+	}
+}
+
+func TestSettingsServiceRegisterPolicyDefaultsFromConfigAndPersists(t *testing.T) {
+	setupSettingsServiceTestDB(t)
+	global.Config = config.Config{}
+	global.Config.App.Register = true
+	global.Config.App.RegisterStatus = int(model.COMMON_STATUS_DISABLED)
+	svc := &SettingsService{}
+
+	defaults, err := svc.GetRegisterPolicy()
+	if err != nil {
+		t.Fatalf("GetRegisterPolicy default error: %v", err)
+	}
+	if !defaults.Enabled || defaults.DefaultStatus != int(model.COMMON_STATUS_DISABLED) {
+		t.Fatalf("default register policy = %#v, want enabled + disabled default status", defaults)
+	}
+
+	if err := svc.SaveRegisterPolicy(RegisterPolicySettings{Enabled: false, DefaultStatus: int(model.COMMON_STATUS_ENABLE)}, 9); err != nil {
+		t.Fatalf("SaveRegisterPolicy error: %v", err)
+	}
+	updated, err := svc.GetRegisterPolicy()
+	if err != nil {
+		t.Fatalf("GetRegisterPolicy after save error: %v", err)
+	}
+	if updated.Enabled || updated.DefaultStatus != int(model.COMMON_STATUS_ENABLE) {
+		t.Fatalf("updated register policy = %#v", updated)
+	}
+}
+
+func TestSettingsServiceRejectsInvalidRegisterPolicyStatus(t *testing.T) {
+	setupSettingsServiceTestDB(t)
+	svc := &SettingsService{}
+
+	if err := svc.SaveRegisterPolicy(RegisterPolicySettings{Enabled: true, DefaultStatus: 99}, 1); err == nil {
+		t.Fatalf("SaveRegisterPolicy accepted invalid default status")
 	}
 }
 

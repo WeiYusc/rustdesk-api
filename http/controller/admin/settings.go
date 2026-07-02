@@ -8,6 +8,38 @@ import (
 
 type Settings struct{}
 
+func (s *Settings) GetRegisterPolicy(c *gin.Context) {
+	settings, err := service.AllService.SettingsService.GetRegisterPolicy()
+	if err != nil {
+		response.Fail(c, 101, err.Error())
+		return
+	}
+	response.Success(c, settings)
+}
+
+func (s *Settings) UpdateRegisterPolicy(c *gin.Context) {
+	settings := service.RegisterPolicySettings{}
+	if err := c.ShouldBindJSON(&settings); err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+err.Error())
+		return
+	}
+	user := service.AllService.UserService.CurUser(c)
+	var updatedBy uint
+	if user != nil {
+		updatedBy = user.Id
+	}
+	if err := service.AllService.SettingsService.SaveRegisterPolicy(settings, updatedBy); err != nil {
+		response.Fail(c, 101, err.Error())
+		return
+	}
+	updated, err := service.AllService.SettingsService.GetRegisterPolicy()
+	if err != nil {
+		response.Fail(c, 101, err.Error())
+		return
+	}
+	response.Success(c, updated)
+}
+
 func (s *Settings) GetSMTP(c *gin.Context) {
 	settings, err := service.AllService.SettingsService.GetSMTP()
 	if err != nil {
