@@ -128,6 +128,10 @@ func (s *SettingsService) GetSMTP() (SMTPSettings, error) {
 	return stored, nil
 }
 
+func (s *SettingsService) GetSMTPForSend() (SMTPSettings, error) {
+	return s.getSMTPStored()
+}
+
 func (s *SettingsService) SaveSMTP(settings SMTPSettings, updatedBy uint) error {
 	current, err := s.getSMTPStored()
 	if err != nil {
