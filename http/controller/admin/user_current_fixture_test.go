@@ -305,6 +305,40 @@ func TestAdminUserChangeCurInfoUpdatesOnlyCurrentUser(t *testing.T) {
 	}
 }
 
+func TestAdminUserChangeCurInfoBlocksDirectDifferentEmailWhenVerificationRequiresChangeFlow(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fixture := setupAdminUserFixture(t)
+	if err := service.AllService.SettingsService.SaveEmailVerification(service.EmailVerificationSettings{Enabled: true, RequireForEmailChange: true}, fixture.nonAdminUser.Id); err != nil {
+		t.Fatalf("save email verification settings: %v", err)
+	}
+
+	blocked := adminUserRequest(fixture.router, http.MethodPost, "/api/admin/user/changeCurInfo", `{"nickname":"Blocked User","avatar":"https://example.test/blocked.png","email":"different@example.test"}`, fixture.nonAdminToken)
+	if blocked.Code != http.StatusOK {
+		t.Fatalf("blocked changeCurInfo status = %d, want %d; body=%q", blocked.Code, http.StatusOK, blocked.Body.String())
+	}
+	assertAdminUserResponseCode(t, blocked.Body.Bytes(), 101)
+	var afterBlocked model.User
+	if err := fixture.db.First(&afterBlocked, fixture.nonAdminUser.Id).Error; err != nil {
+		t.Fatalf("query blocked user: %v", err)
+	}
+	if afterBlocked.Email != fixture.nonAdminUser.Email || afterBlocked.Nickname != fixture.nonAdminUser.Nickname || afterBlocked.Avatar != fixture.nonAdminUser.Avatar {
+		t.Fatalf("blocked direct email change mutated user: %#v", afterBlocked)
+	}
+
+	nicknameOnly := adminUserRequest(fixture.router, http.MethodPost, "/api/admin/user/changeCurInfo", `{"nickname":"Nickname Only","avatar":"https://example.test/avatar-only.png"}`, fixture.nonAdminToken)
+	if nicknameOnly.Code != http.StatusOK {
+		t.Fatalf("nickname-only changeCurInfo status = %d, want %d; body=%q", nicknameOnly.Code, http.StatusOK, nicknameOnly.Body.String())
+	}
+	assertAdminUserResponseCode(t, nicknameOnly.Body.Bytes(), 0)
+	var updated model.User
+	if err := fixture.db.First(&updated, fixture.nonAdminUser.Id).Error; err != nil {
+		t.Fatalf("query nickname-only user: %v", err)
+	}
+	if updated.Nickname != "Nickname Only" || updated.Avatar != "https://example.test/avatar-only.png" || updated.Email != fixture.nonAdminUser.Email {
+		t.Fatalf("nickname/avatar-only state = %q/%q/%q", updated.Nickname, updated.Avatar, updated.Email)
+	}
+}
+
 func assertAdminUserResponseCode(t *testing.T, body []byte, want int) {
 	t.Helper()
 	var payload struct {

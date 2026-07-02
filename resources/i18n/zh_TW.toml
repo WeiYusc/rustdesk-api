@@ -237,3 +237,7 @@ other = "管理員尚未設定 SMTP，服務不可用。"
 [ForgotPasswordNotImplemented]
 description = "ForgotPasswordNotImplemented"
 other = "忘記密碼郵件寄送功能尚未實作。"
+
+[DirectEmailChangeRequiresVerification]
+description = "DirectEmailChangeRequiresVerification"
+other = "郵箱變更需要先完成驗證碼驗證，請使用郵箱驗證流程修改郵箱。"

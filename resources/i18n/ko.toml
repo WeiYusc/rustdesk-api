@@ -231,3 +231,7 @@ other = "The administrator has not configured SMTP, so this service is unavailab
 [ForgotPasswordNotImplemented]
 description = "ForgotPasswordNotImplemented"
 other = "Forgot password email sending is not implemented yet."
+
+[DirectEmailChangeRequiresVerification]
+description = "DirectEmailChangeRequiresVerification"
+other = "Email changes require verification first. Please use the email verification flow to change your email address."

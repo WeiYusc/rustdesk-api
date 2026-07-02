@@ -304,6 +304,20 @@ func (ct *User) ChangeCurInfo(c *gin.Context) {
 		return
 	}
 	u := service.AllService.UserService.CurUser(c)
+	requestedEmail := service.NormalizeEmailForVerification(f.Email)
+	currentEmail := service.NormalizeEmailForVerification(u.Email)
+	settings, settingsErr := service.AllService.SettingsService.GetEmailVerification()
+	if settingsErr != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+settingsErr.Error())
+		return
+	}
+	if settings.Enabled && settings.RequireForEmailChange && requestedEmail != "" && requestedEmail != currentEmail {
+		response.Fail(c, 101, response.TranslateMsg(c, "DirectEmailChangeRequiresVerification"))
+		return
+	}
+	if settings.Enabled && settings.RequireForEmailChange && requestedEmail == "" {
+		f.Email = u.Email
+	}
 	err := service.AllService.UserService.UpdateCurrentInfo(u, f.Nickname, f.Avatar, f.Email)
 	if err != nil {
 		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())

@@ -230,3 +230,7 @@ other = "管理员尚未配置SMTP，服务不可用。"
 [ForgotPasswordNotImplemented]
 description = "ForgotPasswordNotImplemented"
 other = "忘记密码邮件发送功能尚未实现。"
+
+[DirectEmailChangeRequiresVerification]
+description = "DirectEmailChangeRequiresVerification"
+other = "邮箱变更需要先完成验证码验证，请使用邮箱验证流程修改邮箱。"
