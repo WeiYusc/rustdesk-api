@@ -171,6 +171,7 @@ func (ct *Login) LoginOptions(c *gin.Context) {
 	disablePwd := service.PasswordLoginDisabled(global.Config.App.DisablePwdLogin)
 	passkeyEnabled := passkeyErr == nil && passkeySettings.Enabled
 	emailVerificationEnabled := emailErr == nil && emailSettings.Enabled
+	emailVerificationRequireForRegister := emailVerificationEnabled && emailSettings.RequireForRegister
 	registerEnabled := registerErr == nil && registerPolicy.Enabled
 	response.Success(c, gin.H{
 		"ops":                                ops,
@@ -181,6 +182,7 @@ func (ct *Login) LoginOptions(c *gin.Context) {
 		"passkey_enabled":                    passkeyEnabled,
 		"passkey_discoverable_login_enabled": passkeyEnabled && passkeySettings.DiscoverableLoginEnabled,
 		"email_verification_enabled":         emailVerificationEnabled,
+		"email_verification_require_for_register": emailVerificationRequireForRegister,
 	})
 }
 

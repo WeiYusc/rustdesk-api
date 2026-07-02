@@ -3,6 +3,7 @@ package admin
 import (
 	"errors"
 	"io"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/lejianwen/rustdesk-api/v2/global"
@@ -388,6 +389,23 @@ func (ct *User) Register(c *gin.Context) {
 	if f.Password != f.ConfirmPassword {
 		response.Fail(c, 101, response.TranslateMsg(c, "PasswordMismatch"))
 		return
+	}
+	emailSettings, err := service.AllService.SettingsService.GetEmailVerification()
+	if err != nil {
+		response.Fail(c, 101, err.Error())
+		return
+	}
+	requireEmail := emailSettings.Enabled && emailSettings.RequireForRegister
+	f.Email = strings.TrimSpace(f.Email)
+	if requireEmail && f.Email == "" {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+"EmailRequired")
+		return
+	}
+	if f.Email != "" {
+		if errList := global.Validator.ValidVar(c, f.Email, "email,lte=128"); len(errList) > 0 {
+			response.Fail(c, 101, errList[0])
+			return
+		}
 	}
 	regStatus := model.StatusCode(policy.DefaultStatus)
 	// 注册状态可能未配置，默认启用
