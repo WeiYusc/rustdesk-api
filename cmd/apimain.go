@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -24,6 +25,41 @@ import (
 )
 
 const DatabaseVersion = 267
+
+var mysqlDatabaseNamePattern = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
+
+type mysqlDSNConfig struct {
+	Username string
+	Password string
+	Addr     string
+	Dbname   string
+	Tls      string
+}
+
+func mysqlDSNCommon(c mysqlDSNConfig, dbName string) string {
+	return fmt.Sprintf("%s:%s@(%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&tls=%s",
+		c.Username,
+		c.Password,
+		c.Addr,
+		dbName,
+		c.Tls,
+	)
+}
+
+func mysqlDatabaseDSN(c mysqlDSNConfig) string {
+	return mysqlDSNCommon(c, c.Dbname)
+}
+
+func mysqlServerDSN(c mysqlDSNConfig) string {
+	return mysqlDSNCommon(c, "")
+}
+
+func mysqlDatabaseIdentifier(dbName string) (string, error) {
+	if !mysqlDatabaseNamePattern.MatchString(dbName) {
+		return "", fmt.Errorf("invalid mysql database name %q: only letters, numbers, and underscores are allowed", dbName)
+	}
+	return "`" + dbName + "`", nil
+}
 
 // @title 管理系统API
 // @version 1.0
@@ -144,22 +180,30 @@ func InitGlobal() {
 	}
 	//gorm
 	if global.Config.Gorm.Type == config.TypeMysql {
-
-		dsn := fmt.Sprintf("%s:%s@(%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&tls=%s",
-			global.Config.Mysql.Username,
-			global.Config.Mysql.Password,
-			global.Config.Mysql.Addr,
-			global.Config.Mysql.Dbname,
-			global.Config.Mysql.Tls,
-		)
-
-		global.DB = orm.NewMysql(&orm.MysqlConfig{
-			Dsn:             dsn,
+		mysqlDSN := mysqlDSNConfig{
+			Username: global.Config.Mysql.Username,
+			Password: global.Config.Mysql.Password,
+			Addr:     global.Config.Mysql.Addr,
+			Dbname:   global.Config.Mysql.Dbname,
+			Tls:      global.Config.Mysql.Tls,
+		}
+		if _, err := mysqlDatabaseIdentifier(mysqlDSN.Dbname); err != nil {
+			global.Logger.Fatalf("invalid mysql database config: %v", err)
+		}
+		if err := ensureMysqlDatabase(mysqlDSN); err != nil {
+			global.Logger.Fatalf("initialize mysql database: %v", err)
+		}
+		db, err := orm.NewMysqlWithError(&orm.MysqlConfig{
+			Dsn:             mysqlDatabaseDSN(mysqlDSN),
 			MaxIdleConns:    global.Config.Gorm.MaxIdleConns,
 			MaxOpenConns:    global.Config.Gorm.MaxOpenConns,
 			ConnMaxIdleTime: global.Config.Gorm.ConnMaxIdleTime,
 			ConnMaxLifetime: global.Config.Gorm.ConnMaxLifetime,
 		}, global.Logger)
+		if err != nil {
+			global.Logger.Fatalf("connect mysql database: %v", err)
+		}
+		global.DB = db
 	} else if global.Config.Gorm.Type == config.TypePostgresql {
 		dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s TimeZone=%s",
 			global.Config.Postgresql.Host,
@@ -215,60 +259,50 @@ func InitGlobal() {
 	DatabaseAutoUpdate()
 }
 
+func ensureMysqlDatabase(c mysqlDSNConfig) error {
+	quotedName, err := mysqlDatabaseIdentifier(c.Dbname)
+	if err != nil {
+		return err
+	}
+	dbWithoutDB, err := orm.NewMysqlWithError(&orm.MysqlConfig{
+		Dsn:             mysqlServerDSN(c),
+		MaxIdleConns:    global.Config.Gorm.MaxIdleConns,
+		MaxOpenConns:    global.Config.Gorm.MaxOpenConns,
+		ConnMaxIdleTime: global.Config.Gorm.ConnMaxIdleTime,
+		ConnMaxLifetime: global.Config.Gorm.ConnMaxLifetime,
+	}, global.Logger)
+	if err != nil {
+		return err
+	}
+	sqlDBWithoutDB, err := dbWithoutDB.DB()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := sqlDBWithoutDB.Close(); err != nil {
+			global.Logger.Errorf("关闭连接失败: %v", err)
+		}
+	}()
+	return dbWithoutDB.Exec("CREATE DATABASE IF NOT EXISTS " + quotedName + " DEFAULT CHARSET utf8mb4").Error
+}
+
 func DatabaseAutoUpdate() {
 	version := DatabaseVersion
 
 	db := global.DB
 
-	if global.Config.Gorm.Type == config.TypeMysql {
-		//检查存不存在数据库，不存在则创建
-		dbName := db.Migrator().CurrentDatabase()
-		if dbName == "" {
-			dbName = global.Config.Mysql.Dbname
-			// 移除 DSN 中的数据库名称，以便初始连接时不指定数据库
-			dsnWithoutDB := fmt.Sprintf("%s:%s@(%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-				global.Config.Mysql.Username,
-				global.Config.Mysql.Password,
-				global.Config.Mysql.Addr,
-				"",
-			)
-
-			//新链接
-			dbWithoutDB := orm.NewMysql(&orm.MysqlConfig{
-				Dsn:             dsnWithoutDB,
-				MaxIdleConns:    global.Config.Gorm.MaxIdleConns,
-				MaxOpenConns:    global.Config.Gorm.MaxOpenConns,
-				ConnMaxIdleTime: global.Config.Gorm.ConnMaxIdleTime,
-				ConnMaxLifetime: global.Config.Gorm.ConnMaxLifetime,
-			}, global.Logger)
-			// 获取底层的 *sql.DB 对象，并确保在程序退出时关闭连接
-			sqlDBWithoutDB, err := dbWithoutDB.DB()
-			if err != nil {
-				global.Logger.Errorf("获取底层 *sql.DB 对象失败: %v", err)
-				return
-			}
-			defer func() {
-				if err := sqlDBWithoutDB.Close(); err != nil {
-					global.Logger.Errorf("关闭连接失败: %v", err)
-				}
-			}()
-
-			err = dbWithoutDB.Exec("CREATE DATABASE IF NOT EXISTS " + dbName + " DEFAULT CHARSET utf8mb4").Error
-			if err != nil {
-				global.Logger.Error(err)
-				return
-			}
-		}
-	}
-
 	if !db.Migrator().HasTable(&model.Version{}) {
-		Migrate(uint(version))
+		if err := Migrate(uint(version)); err != nil {
+			global.Logger.Fatalf("database migration failed: %v", err)
+		}
 	} else {
 		//查找最后一个version
 		var v model.Version
 		db.Last(&v)
 		if v.Version < uint(version) {
-			Migrate(uint(version))
+			if err := Migrate(uint(version)); err != nil {
+				global.Logger.Fatalf("database migration failed: %v", err)
+			}
 		}
 
 		// 245迁移
@@ -292,7 +326,7 @@ func DatabaseAutoUpdate() {
 	}
 
 }
-func Migrate(version uint) {
+func Migrate(version uint) error {
 	global.Logger.Info("Migrating....", version)
 	err := global.DB.AutoMigrate(
 		&model.Version{},
@@ -319,8 +353,12 @@ func Migrate(version uint) {
 	)
 	if err != nil {
 		global.Logger.Error("migrate err :=>", err)
+		return err
 	}
-	global.DB.Create(&model.Version{Version: version})
+	if err := global.DB.Create(&model.Version{Version: version}).Error; err != nil {
+		global.Logger.Error("create database version err :=>", err)
+		return err
+	}
 	//如果是初次则创建一个默认用户
 	var vc int64
 	global.DB.Model(&model.Version{}).Count(&vc)
@@ -363,5 +401,6 @@ func Migrate(version uint) {
 		}
 		global.DB.Create(admin)
 	}
+	return nil
 
 }

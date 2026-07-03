@@ -2,11 +2,11 @@ package orm
 
 import (
 	"database/sql"
-	"fmt"
+	"time"
+
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"time"
 )
 
 const (
@@ -23,6 +23,14 @@ type MysqlConfig struct {
 }
 
 func NewMysql(mysqlConf *MysqlConfig, logwriter logger.Writer) *gorm.DB {
+	db, err := NewMysqlWithError(mysqlConf, logwriter)
+	if err != nil {
+		panic(err)
+	}
+	return db
+}
+
+func NewMysqlWithError(mysqlConf *MysqlConfig, logwriter logger.Writer) (*gorm.DB, error) {
 	db, err := gorm.Open(mysql.New(mysql.Config{
 		DSN:               mysqlConf.Dsn, // DSN data source name
 		DefaultStringSize: 256,           // string 类型字段的默认长度
@@ -44,15 +52,15 @@ func NewMysql(mysqlConf *MysqlConfig, logwriter logger.Writer) *gorm.DB {
 		),
 	})
 	if err != nil {
-		fmt.Println(err)
+		return nil, err
 	}
-	sqlDB, err2 := db.DB()
-	if err2 != nil {
-		fmt.Println(err2)
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, err
 	}
 	applyMysqlConnPoolConfig(sqlDB, mysqlConf)
 
-	return db
+	return db, nil
 }
 
 func applyMysqlConnPoolConfig(sqlDB *sql.DB, mysqlConf *MysqlConfig) {

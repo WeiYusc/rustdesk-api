@@ -5,7 +5,38 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
+
+func TestNewMysqlWithErrorReturnsConnectionError(t *testing.T) {
+	_, err := NewMysqlWithError(&MysqlConfig{
+		Dsn:          "invalid:mysql@tcp(127.0.0.1:1)/missing?timeout=1ms",
+		MaxIdleConns: 1,
+		MaxOpenConns: 1,
+	}, logrus.New())
+	if err == nil {
+		t.Fatalf("NewMysqlWithError returned nil error for invalid DSN")
+	}
+}
+
+func TestNewMysqlCompatibilityWrapperPreservesPanicOnConnectionError(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatalf("NewMysql did not panic for invalid DSN")
+		} else {
+			// The panic payload should be an error; exact driver error text is not stable.
+			if _, ok := r.(error); !ok {
+				t.Fatalf("NewMysql panic payload type = %T, want error", r)
+			}
+		}
+	}()
+	_ = NewMysql(&MysqlConfig{
+		Dsn:          "invalid:mysql@tcp(127.0.0.1:1)/missing?timeout=1ms",
+		MaxIdleConns: 1,
+		MaxOpenConns: 1,
+	}, logrus.New())
+}
 
 func TestApplyMysqlConnPoolConfigSetsSafeDefaultLifetimes(t *testing.T) {
 	sqlDB := &sql.DB{}
