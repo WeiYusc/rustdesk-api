@@ -45,6 +45,9 @@ func TestDatabaseAutoUpdateMigratesAuthUpgradeTablesFromPreviousVersion(t *testi
 			t.Fatalf("%s table was not migrated from previous database version", model.name)
 		}
 	}
+	if !db.Migrator().HasColumn(&model.EmailVerificationToken{}, "failed_attempts") {
+		t.Fatalf("email_verification_tokens.failed_attempts was not migrated from previous database version")
+	}
 
 	var latest model.Version
 	if err := db.Last(&latest).Error; err != nil {

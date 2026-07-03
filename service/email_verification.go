@@ -26,6 +26,8 @@ var (
 	ErrEmailVerificationSecretMissing  = errors.New("email verification hash secret missing")
 )
 
+const maxEmailVerificationFailedAttempts = 5
+
 type EmailVerificationService struct{}
 
 type EmailVerificationChallenge struct {
@@ -175,6 +177,9 @@ func (s *EmailVerificationService) verifyCode(db *gorm.DB, userID uint, email, p
 		}
 	}
 	if matched == nil {
+		if err := s.lockLatestEmailVerificationTokenAfterFailedAttempt(db, tokens); err != nil {
+			return nil, err
+		}
 		return nil, ErrEmailVerificationInvalidCode
 	}
 	if matched.UsedAt != nil {
@@ -195,6 +200,27 @@ func (s *EmailVerificationService) verifyCode(db *gorm.DB, userID uint, email, p
 	}
 	matched.UsedAt = &now
 	return matched, nil
+}
+
+func (s *EmailVerificationService) lockLatestEmailVerificationTokenAfterFailedAttempt(db *gorm.DB, tokens []model.EmailVerificationToken) error {
+	for i := range tokens {
+		token := tokens[i]
+		if token.UsedAt != nil || time.Now().After(token.ExpiresAt) {
+			continue
+		}
+		now := time.Now()
+		result := db.Model(&model.EmailVerificationToken{}).
+			Where("id = ? AND used_at IS NULL AND expires_at > ?", token.Id, now).
+			Updates(map[string]interface{}{
+				"failed_attempts": gorm.Expr("failed_attempts + ?", 1),
+				"used_at":         gorm.Expr("CASE WHEN failed_attempts + ? >= ? THEN ? ELSE used_at END", 1, maxEmailVerificationFailedAttempts, now),
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		return nil
+	}
+	return nil
 }
 
 func (s *EmailVerificationService) MarkCurrentEmailVerified(userID uint, email string) error {

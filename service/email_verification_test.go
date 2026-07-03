@@ -153,6 +153,30 @@ func TestEmailVerificationCreateCodeEnforcesCooldownAndDailyLimit(t *testing.T) 
 	}
 }
 
+func TestEmailVerificationVerifyCodeLocksChallengeAfterRepeatedWrongCodes(t *testing.T) {
+	db := setupEmailVerificationTestDB(t)
+	svc := &EmailVerificationService{}
+	_, code, err := svc.CreateCode(10, "limit-guesses@example.com", model.EmailVerificationPurposeVerifyCurrent, "", testEmailVerificationSettings())
+	if err != nil {
+		t.Fatalf("CreateCode error: %v", err)
+	}
+	for i := 0; i < maxEmailVerificationFailedAttempts; i++ {
+		if _, err := svc.VerifyCode(10, "limit-guesses@example.com", model.EmailVerificationPurposeVerifyCurrent, "000000"); !errors.Is(err, ErrEmailVerificationInvalidCode) {
+			t.Fatalf("wrong code attempt %d err = %v, want ErrEmailVerificationInvalidCode", i+1, err)
+		}
+	}
+	if _, err := svc.VerifyCode(10, "limit-guesses@example.com", model.EmailVerificationPurposeVerifyCurrent, code); !errors.Is(err, ErrEmailVerificationAlreadyUsed) {
+		t.Fatalf("valid code after repeated wrong attempts err = %v, want ErrEmailVerificationAlreadyUsed", err)
+	}
+	var token model.EmailVerificationToken
+	if err := db.Where("user_id = ? AND email = ?", 10, "limit-guesses@example.com").First(&token).Error; err != nil {
+		t.Fatalf("load token: %v", err)
+	}
+	if token.UsedAt == nil || token.FailedAttempts != maxEmailVerificationFailedAttempts {
+		t.Fatalf("locked token = %#v, want used with failed attempts", token)
+	}
+}
+
 func TestEmailVerificationVerifyCodeReturnsAlreadyUsedWhenUpdateRaces(t *testing.T) {
 	db := setupEmailVerificationTestDB(t)
 	svc := &EmailVerificationService{}
