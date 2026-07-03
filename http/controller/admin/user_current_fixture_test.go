@@ -15,6 +15,7 @@ import (
 	"github.com/lejianwen/rustdesk-api/v2/http/middleware"
 	"github.com/lejianwen/rustdesk-api/v2/lib/jwt"
 	"github.com/lejianwen/rustdesk-api/v2/model"
+	"github.com/lejianwen/rustdesk-api/v2/model/custom_types"
 	"github.com/lejianwen/rustdesk-api/v2/service"
 	"github.com/lejianwen/rustdesk-api/v2/utils"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -169,7 +170,7 @@ func TestAdminUserRegisterUsesPersistedRegisterPolicy(t *testing.T) {
 		t.Fatalf("save disabled-status register policy: %v", err)
 	}
 	waiting := adminUserRequest(fixture.router, http.MethodPost, "/api/admin/user/register", `{"username":"policy-wait","email":"wait@example.test","password":"pass1234","confirm_password":"pass1234"}`, "")
-	assertAdminUserResponseCode(t, waiting.Body.Bytes(), 101)
+	assertAdminUserResponseCode(t, waiting.Body.Bytes(), 0)
 	created := service.AllService.UserService.InfoByUsername("policy-wait")
 	if created.Id == 0 || created.Status != model.COMMON_STATUS_DISABLED {
 		t.Fatalf("registered user = %#v, want disabled user waiting for admin confirm", created)
@@ -179,6 +180,10 @@ func TestAdminUserRegisterUsesPersistedRegisterPolicy(t *testing.T) {
 func TestAdminUserCurrentUsesBackendAuthAndReturnsRoleRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	fixture := setupAdminUserFixture(t)
+	verifiedAt := custom_types.AutoTime(time.Date(2026, 7, 3, 12, 0, 0, 0, time.UTC))
+	if err := fixture.db.Model(fixture.nonAdminUser).Update("email_verified_at", verifiedAt).Error; err != nil {
+		t.Fatalf("mark non-admin email verified: %v", err)
+	}
 
 	unauthenticated := adminUserRequest(fixture.router, http.MethodGet, "/api/admin/user/current", "", "")
 	if unauthenticated.Code != http.StatusOK {
@@ -193,11 +198,12 @@ func TestAdminUserCurrentUsesBackendAuthAndReturnsRoleRoutes(t *testing.T) {
 	var nonAdminPayload struct {
 		Code int `json:"code"`
 		Data struct {
-			Username   string   `json:"username"`
-			Email      string   `json:"email"`
-			Nickname   string   `json:"nickname"`
-			Token      string   `json:"token"`
-			RouteNames []string `json:"route_names"`
+			Username        string   `json:"username"`
+			Email           string   `json:"email"`
+			EmailVerifiedAt string   `json:"email_verified_at"`
+			Nickname        string   `json:"nickname"`
+			Token           string   `json:"token"`
+			RouteNames      []string `json:"route_names"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(nonAdmin.Body.Bytes(), &nonAdminPayload); err != nil {
@@ -206,8 +212,14 @@ func TestAdminUserCurrentUsesBackendAuthAndReturnsRoleRoutes(t *testing.T) {
 	if nonAdminPayload.Code != 0 || nonAdminPayload.Data.Username != fixture.nonAdminUser.Username || nonAdminPayload.Data.Email != fixture.nonAdminUser.Email || nonAdminPayload.Data.Nickname != fixture.nonAdminUser.Nickname || nonAdminPayload.Data.Token != fixture.nonAdminToken {
 		t.Fatalf("non-admin current payload = %#v", nonAdminPayload)
 	}
+	if nonAdminPayload.Data.EmailVerifiedAt == "" {
+		t.Fatalf("non-admin email_verified_at was not returned in current payload: %#v", nonAdminPayload.Data)
+	}
 	if len(nonAdminPayload.Data.RouteNames) != len(model.UserRouteNames) || nonAdminPayload.Data.RouteNames[0] != model.UserRouteNames[0] {
 		t.Fatalf("non-admin route_names = %#v, want user route names", nonAdminPayload.Data.RouteNames)
+	}
+	if !containsString(nonAdminPayload.Data.RouteNames, "MySecurity") {
+		t.Fatalf("non-admin route_names = %#v, want MySecurity", nonAdminPayload.Data.RouteNames)
 	}
 
 	adminCurrent := adminUserRequest(fixture.router, http.MethodGet, "/api/admin/user/current", "", fixture.adminToken)
@@ -231,6 +243,15 @@ func TestAdminUserCurrentUsesBackendAuthAndReturnsRoleRoutes(t *testing.T) {
 	if len(adminPayload.Data.RouteNames) != 1 || adminPayload.Data.RouteNames[0] != "*" {
 		t.Fatalf("admin route_names = %#v, want wildcard", adminPayload.Data.RouteNames)
 	}
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func TestAdminUserListRequiresAdminPrivilegeAndReturnsUsers(t *testing.T) {

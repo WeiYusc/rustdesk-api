@@ -86,6 +86,16 @@ func (ct *Login) Login(c *gin.Context) {
 		return
 	}
 
+	emailSettings, err := service.AllService.SettingsService.GetEmailVerification()
+	if err != nil {
+		response.Fail(c, 101, err.Error())
+		return
+	}
+	if service.EmailVerificationRequiredForLogin(u, emailSettings) {
+		response.Fail(c, 101, response.TranslateMsg(c, "EmailVerificationRequiredForLogin"))
+		return
+	}
+
 	ut := service.AllService.UserService.Login(u, &model.LoginLog{
 		UserId:   u.Id,
 		Client:   model.LoginLogClientWebAdmin,

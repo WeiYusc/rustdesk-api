@@ -141,8 +141,8 @@ func TestAdminRegisterAllowsValidEmailWhenVerificationRequiresRegister(t *testin
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("register status = %d, want %d; body=%q", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
-	if code := decodeAdminRegisterResponseCode(t, recorder.Body.Bytes()); code != 101 {
-		t.Fatalf("register with valid required email code = %d, want wait-admin code 101; body=%q", code, recorder.Body.String())
+	if code := decodeAdminRegisterResponseCode(t, recorder.Body.Bytes()); code != 0 {
+		t.Fatalf("register with valid required email code = %d, want pending-approval success code 0; body=%q", code, recorder.Body.String())
 	}
 	var user model.User
 	if err := db.Where("username = ?", "valid-email-required-user").First(&user).Error; err != nil {
@@ -166,8 +166,8 @@ func TestAdminRegisterAllowsMissingEmailWhenVerificationDoesNotRequireRegister(t
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("register status = %d, want %d; body=%q", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
-	if code := decodeAdminRegisterResponseCode(t, recorder.Body.Bytes()); code != 101 {
-		t.Fatalf("register with optional missing email code = %d, want wait-admin code 101; body=%q", code, recorder.Body.String())
+	if code := decodeAdminRegisterResponseCode(t, recorder.Body.Bytes()); code != 0 {
+		t.Fatalf("register with optional missing email code = %d, want pending-approval success code 0; body=%q", code, recorder.Body.String())
 	}
 	var count int64
 	if err := db.Model(&model.User{}).Where("username = ?", "optional-email-user").Count(&count).Error; err != nil {

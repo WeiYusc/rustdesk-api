@@ -222,6 +222,10 @@ other = "Le nom d'utilisateur existe déjà."
 description = "EmailVerificationDisabled"
 other = "Email verification is disabled. Please enable email verification in system settings first."
 
+[EmailVerificationRequiredForLogin]
+description = "EmailVerificationRequiredForLogin"
+other = "Please verify your email address before logging in."
+
 [SMTPNotConfigured]
 description = "SMTPNotConfigured"
 other = "SMTP is not enabled or fully configured, so verification emails cannot be sent."

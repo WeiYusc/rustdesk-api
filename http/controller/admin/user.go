@@ -434,7 +434,7 @@ func (ct *User) Register(c *gin.Context) {
 	}
 	if regStatus == model.COMMON_STATUS_DISABLED {
 		// 需要管理员审核
-		response.Fail(c, 101, response.TranslateMsg(c, "RegisterSuccessWaitAdminConfirm"))
+		response.Success(c, gin.H{"pending_approval": true})
 		return
 	}
 	// 注册成功后自动登录

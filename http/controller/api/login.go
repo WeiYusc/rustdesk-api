@@ -81,6 +81,16 @@ func (l *Login) Login(c *gin.Context) {
 		return
 	}
 
+	emailSettings, err := service.AllService.SettingsService.GetEmailVerification()
+	if err != nil {
+		response.Error(c, err.Error())
+		return
+	}
+	if service.EmailVerificationRequiredForLogin(u, emailSettings) {
+		response.Error(c, response.TranslateMsg(c, "EmailVerificationRequiredForLogin"))
+		return
+	}
+
 	//根据refer判断是webclient还是app
 	ref := c.GetHeader("referer")
 	if ref != "" {

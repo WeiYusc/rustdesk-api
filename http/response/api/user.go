@@ -31,9 +31,16 @@ func (up *UserPayload) FromUser(user *model.User) *UserPayload {
 	up.Name = user.Username
 	up.Email = user.Email
 	up.IsAdmin = user.IsAdmin
-	up.Status = int(user.Status)
+	up.Status = RustdeskClientUserStatus(user.Status)
 	up.Info = map[string]interface{}{}
 	return up
+}
+
+func RustdeskClientUserStatus(status model.StatusCode) int {
+	if status == model.COMMON_STATUS_DISABLED {
+		return 0
+	}
+	return int(status)
 }
 
 /*

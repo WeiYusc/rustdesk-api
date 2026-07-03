@@ -222,6 +222,10 @@ other = "使用者名稱已存在。"
 description = "EmailVerificationDisabled"
 other = "郵箱驗證功能未啟用，請先在系統設定中啟用郵箱驗證。"
 
+[EmailVerificationRequiredForLogin]
+description = "EmailVerificationRequiredForLogin"
+other = "請先驗證郵箱後再登入。"
+
 [SMTPNotConfigured]
 description = "SMTPNotConfigured"
 other = "SMTP 未啟用或未完整設定，無法發送驗證碼。"
