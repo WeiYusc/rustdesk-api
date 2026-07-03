@@ -300,7 +300,7 @@ func PasswordLoginDisabled(configDisabled bool) bool {
 
 func (s *SettingsService) loadJSONSetting(key string, out interface{}) error {
 	setting := &model.Setting{}
-	err := DB.Where("key = ?", key).First(setting).Error
+	err := DB.Where(clause.Eq{Column: clause.Column{Name: "key"}, Value: key}).First(setting).Error
 	if err != nil {
 		return ignoreRecordNotFound(err)
 	}
