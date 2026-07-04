@@ -12,6 +12,10 @@ type ForgotPasswordRequest struct {
 	Email string `json:"email" validate:"required,email" label:"邮箱"`
 }
 
+type SMTPTestRequest struct {
+	To string `json:"to" validate:"required,email" label:"收件邮箱"`
+}
+
 type LoginLogQuery struct {
 	UserId int `form:"user_id"`
 	IsMy   int `form:"is_my"`

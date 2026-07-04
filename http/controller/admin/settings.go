@@ -1,12 +1,54 @@
 package admin
 
 import (
+	"context"
+	"fmt"
+	"sync"
+	"time"
+
 	"github.com/gin-gonic/gin"
+	"github.com/lejianwen/rustdesk-api/v2/global"
+	"github.com/lejianwen/rustdesk-api/v2/http/request/admin"
 	"github.com/lejianwen/rustdesk-api/v2/http/response"
 	"github.com/lejianwen/rustdesk-api/v2/service"
 )
 
 type Settings struct{}
+
+type smtpTestSender interface {
+	Send(ctx context.Context, settings service.SMTPSettings, message service.SMTPMessage) error
+}
+
+var smtpTestSenderState = struct {
+	sync.RWMutex
+	sender smtpTestSender
+}{sender: service.NewSMTPSender(nil)}
+
+type settingsCleanupRegistrar interface {
+	Cleanup(func())
+}
+
+func setSMTPTestSenderForTest(t settingsCleanupRegistrar, sender smtpTestSender) {
+	smtpTestSenderState.Lock()
+	previous := smtpTestSenderState.sender
+	smtpTestSenderState.sender = sender
+	smtpTestSenderState.Unlock()
+	t.Cleanup(func() {
+		smtpTestSenderState.Lock()
+		smtpTestSenderState.sender = previous
+		smtpTestSenderState.Unlock()
+	})
+}
+
+func sendSMTPTestMessage(ctx context.Context, settings service.SMTPSettings, message service.SMTPMessage) error {
+	smtpTestSenderState.RLock()
+	sender := smtpTestSenderState.sender
+	smtpTestSenderState.RUnlock()
+	if sender == nil {
+		sender = service.NewSMTPSender(nil)
+	}
+	return sender.Send(ctx, settings, message)
+}
 
 func (s *Settings) GetRegisterPolicy(c *gin.Context) {
 	settings, err := service.AllService.SettingsService.GetRegisterPolicy()
@@ -73,7 +115,37 @@ func (s *Settings) UpdateSMTP(c *gin.Context) {
 }
 
 func (s *Settings) TestSMTP(c *gin.Context) {
-	response.Fail(c, 101, "SmtpSendNotImplemented")
+	form := &admin.SMTPTestRequest{}
+	if err := c.ShouldBindJSON(form); err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+err.Error())
+		return
+	}
+	if errList := global.Validator.ValidStruct(c, form); len(errList) > 0 {
+		response.Fail(c, 101, errList[0])
+		return
+	}
+	smtpSettings, err := service.AllService.SettingsService.GetSMTPForSend()
+	if err != nil {
+		response.Fail(c, 101, err.Error())
+		return
+	}
+	if !smtpSettings.Ready() {
+		response.Fail(c, 101, response.TranslateMsg(c, "SMTPServiceUnavailable"))
+		return
+	}
+	message := service.SMTPMessage{
+		To:       form.To,
+		Subject:  "RustDesk API SMTP test",
+		TextBody: fmt.Sprintf("This is a RustDesk API SMTP test email sent at %s.", time.Now().UTC().Format(time.RFC3339)),
+	}
+	if err := sendSMTPTestMessage(c.Request.Context(), smtpSettings, message); err != nil {
+		if global.Logger != nil {
+			global.Logger.Warnf("SMTP test email failed: %v", err)
+		}
+		response.Fail(c, 101, "SMTP test email failed")
+		return
+	}
+	response.Success(c, nil)
 }
 
 func (s *Settings) GetEmailVerification(c *gin.Context) {
