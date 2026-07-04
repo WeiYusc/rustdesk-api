@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/lejianwen/rustdesk-api/v2/global"
 	"github.com/lejianwen/rustdesk-api/v2/http/response"
 	"github.com/lejianwen/rustdesk-api/v2/model"
 	"github.com/lejianwen/rustdesk-api/v2/service"
@@ -98,7 +99,11 @@ func (e *Email) SendVerification(c *gin.Context) {
 			response.Fail(c, 101, markErr.Error())
 			return
 		}
-		response.Fail(c, 101, err.Error())
+		failureKey := classifySMTPDeliveryError(err)
+		if global.Logger != nil {
+			global.Logger.Warnf("email verification send failed: %s", failureKey)
+		}
+		response.Fail(c, 101, response.TranslateMsg(c, failureKey))
 		return
 	}
 	response.Success(c, emailVerificationSendResponse{ChallengeID: challenge.ID, Email: challenge.Email, ExpiresAt: challenge.ExpiresAt})
@@ -216,7 +221,11 @@ func (e *Email) BeginChange(c *gin.Context) {
 			response.Fail(c, 101, clearErr.Error())
 			return
 		}
-		response.Fail(c, 101, err.Error())
+		failureKey := classifySMTPDeliveryError(err)
+		if global.Logger != nil {
+			global.Logger.Warnf("email change verification send failed: %s", failureKey)
+		}
+		response.Fail(c, 101, response.TranslateMsg(c, failureKey))
 		return
 	}
 	response.Success(c, emailVerificationSendResponse{ChallengeID: challenge.ID, Email: challenge.Email, ExpiresAt: challenge.ExpiresAt})

@@ -159,6 +159,9 @@ func TestForgotPasswordRequestSendFailureDoesNotEnumerateExistingEmail(t *testin
 	response := fixture.request("/api/admin/forgot-password/request", `{"email":"reset@example.test"}`)
 
 	assertForgotPasswordResponseCode(t, response, 0)
+	if strings.Contains(response.Body.String(), "smtp down") {
+		t.Fatalf("forgot-password send failure leaked raw SMTP error: %q", response.Body.String())
+	}
 	var stored model.EmailVerificationToken
 	if err := fixture.db.First(&stored).Error; err != nil {
 		t.Fatalf("load reset token after send failure: %v", err)

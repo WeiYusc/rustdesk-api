@@ -201,7 +201,10 @@ func TestEmailVerificationSendFailureMarksChallengeUsed(t *testing.T) {
 	response := fixture.request(http.MethodPost, "/api/admin/email/verification/send", `{}`)
 
 	assertEmailVerificationResponseCode(t, response, 101)
-	if !strings.Contains(response.Body.String(), "smtp down") {
+	if strings.Contains(response.Body.String(), "smtp down") {
+		t.Fatalf("send failure leaked raw SMTP error: %q", response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), "SMTP test email failed") {
 		t.Fatalf("send failure response body = %q", response.Body.String())
 	}
 	var token model.EmailVerificationToken
@@ -329,6 +332,9 @@ func TestEmailVerificationBeginChangeSendFailureMarksTokenUsedAndClearsPending(t
 	response := fixture.request(http.MethodPost, "/api/admin/email/change/begin", `{"email":"new@example.test"}`)
 
 	assertEmailVerificationResponseCode(t, response, 101)
+	if strings.Contains(response.Body.String(), "smtp down") {
+		t.Fatalf("begin change send failure leaked raw SMTP error: %q", response.Body.String())
+	}
 	assertUserEmailState(t, fixture.db, fixture.user.Id, "Current@Example.Test", "", false)
 	var token model.EmailVerificationToken
 	if err := fixture.db.First(&token).Error; err != nil {

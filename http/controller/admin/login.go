@@ -248,8 +248,9 @@ func (ct *Login) ForgotPasswordRequest(c *gin.Context) {
 			response.Fail(c, 101, markErr.Error())
 			return
 		}
+		failureKey := classifySMTPDeliveryError(err)
 		if global.Logger != nil {
-			global.Logger.Warnf("forgot password reset email send failed: %v", err)
+			global.Logger.Warnf("forgot password reset email send failed: %s", failureKey)
 		}
 		response.Success(c, gin.H{"ok": true})
 		return

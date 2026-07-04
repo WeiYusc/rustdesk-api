@@ -563,8 +563,9 @@ func (ct *User) SendRegisterVerification(c *gin.Context) {
 		if markErr := service.AllService.EmailVerificationService.MarkChallengeUsed(challenge.ID); markErr != nil && global.Logger != nil {
 			global.Logger.Warnf("register email verification challenge cleanup failed: %v", markErr)
 		}
+		failureKey := classifySMTPDeliveryError(err)
 		if global.Logger != nil {
-			global.Logger.Warnf("register email verification send failed: %v", err)
+			global.Logger.Warnf("register email verification send failed: %s", failureKey)
 		}
 		respondRegisterEmailSendSuppressed(c)
 		return
