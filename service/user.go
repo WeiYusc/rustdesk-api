@@ -35,7 +35,7 @@ func (us *UserService) InfoByUsername(un string) *model.User {
 // InfoByEmail 根据邮箱取用户信息
 func (us *UserService) InfoByEmail(email string) *model.User {
 	u := &model.User{}
-	DB.Where("email = ?", email).First(u)
+	DB.Where("lower(trim(email)) = ?", NormalizeEmailForVerification(email)).First(u)
 	return u
 }
 

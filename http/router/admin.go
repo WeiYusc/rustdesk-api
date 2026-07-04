@@ -71,6 +71,7 @@ func LoginBind(rg *gin.RouterGroup) {
 	cont := &admin.Login{}
 	rg.POST("/login", cont.Login)
 	rg.POST("/forgot-password/request", cont.ForgotPasswordRequest)
+	rg.POST("/forgot-password/reset", cont.ForgotPasswordReset)
 	rg.GET("/captcha", cont.Captcha)
 	rg.GET("/login-options", cont.LoginOptions)
 	rg.POST("/oidc/auth", cont.OidcAuth)

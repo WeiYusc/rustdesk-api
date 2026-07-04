@@ -2,6 +2,7 @@ package admin
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/lejianwen/rustdesk-api/v2/global"
@@ -202,12 +203,13 @@ func (ct *Login) ForgotPasswordRequest(c *gin.Context) {
 		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+err.Error())
 		return
 	}
+	f.Email = service.NormalizeEmailForVerification(f.Email)
 	if errList := global.Validator.ValidStruct(c, f); len(errList) > 0 {
 		response.Fail(c, 101, errList[0])
 		return
 	}
 
-	smtpSettings, err := service.AllService.SettingsService.GetSMTP()
+	smtpSettings, err := service.AllService.SettingsService.GetSMTPForSend()
 	if err != nil {
 		response.Fail(c, 101, err.Error())
 		return
@@ -216,8 +218,65 @@ func (ct *Login) ForgotPasswordRequest(c *gin.Context) {
 		response.Fail(c, 101, response.TranslateMsg(c, "SMTPServiceUnavailable"))
 		return
 	}
+	settings, err := service.AllService.SettingsService.GetEmailVerification()
+	if err != nil {
+		response.Fail(c, 101, err.Error())
+		return
+	}
+	normalizedEmail := service.NormalizeEmailForVerification(f.Email)
+	user := service.AllService.UserService.InfoByEmail(normalizedEmail)
+	if user == nil || user.Id == 0 || user.Status != model.COMMON_STATUS_ENABLE {
+		response.Success(c, gin.H{"ok": true})
+		return
+	}
+	challenge, token, err := service.AllService.EmailVerificationService.CreatePasswordResetToken(user.Id, normalizedEmail, c.ClientIP(), settings)
+	if err != nil {
+		if err == service.ErrEmailVerificationCooldown || err == service.ErrEmailVerificationDailyLimit {
+			response.Success(c, gin.H{"ok": true})
+			return
+		}
+		response.Fail(c, 101, err.Error())
+		return
+	}
+	message := service.SMTPMessage{
+		To:       challenge.Email,
+		Subject:  "Reset your password",
+		TextBody: fmt.Sprintf("Use this password reset token before %s: token=%s", challenge.ExpiresAt.Format(time.RFC3339), token),
+	}
+	if err := sendEmailVerificationMessage(c.Request.Context(), smtpSettings, message); err != nil {
+		if markErr := service.AllService.EmailVerificationService.MarkChallengeUsed(challenge.ID); markErr != nil {
+			response.Fail(c, 101, markErr.Error())
+			return
+		}
+		if global.Logger != nil {
+			global.Logger.Warnf("forgot password reset email send failed: %v", err)
+		}
+		response.Success(c, gin.H{"ok": true})
+		return
+	}
 
-	response.Fail(c, 101, response.TranslateMsg(c, "ForgotPasswordNotImplemented"))
+	response.Success(c, gin.H{"ok": true})
+}
+
+func (ct *Login) ForgotPasswordReset(c *gin.Context) {
+	f := &admin.ForgotPasswordResetRequest{}
+	if err := c.ShouldBindJSON(f); err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+err.Error())
+		return
+	}
+	if errList := global.Validator.ValidStruct(c, f); len(errList) > 0 {
+		response.Fail(c, 101, errList[0])
+		return
+	}
+	if f.Password != f.ConfirmPassword {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError"))
+		return
+	}
+	if err := service.AllService.EmailVerificationService.ResetPasswordWithToken(f.Token, f.Password); err != nil {
+		response.Fail(c, 101, err.Error())
+		return
+	}
+	response.Success(c, gin.H{"ok": true})
 }
 
 // OidcAuth

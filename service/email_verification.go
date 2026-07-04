@@ -4,6 +4,7 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/lejianwen/rustdesk-api/v2/model"
 	"github.com/lejianwen/rustdesk-api/v2/model/custom_types"
+	"github.com/lejianwen/rustdesk-api/v2/utils"
 	"gorm.io/gorm"
 )
 
@@ -32,6 +34,13 @@ type EmailVerificationService struct{}
 
 type EmailVerificationChallenge struct {
 	ID        uint      `json:"id"`
+	Email     string    `json:"email"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+type PasswordResetChallenge struct {
+	ID        uint      `json:"id"`
+	UserID    uint      `json:"user_id"`
 	Email     string    `json:"email"`
 	ExpiresAt time.Time `json:"expires_at"`
 }
@@ -93,6 +102,106 @@ func (s *EmailVerificationService) CreateCode(userID uint, email, purpose, ip st
 		return nil, "", err
 	}
 	return &EmailVerificationChallenge{ID: token.Id, Email: token.Email, ExpiresAt: token.ExpiresAt}, code, nil
+}
+
+func (s *EmailVerificationService) CreatePasswordResetToken(userID uint, email, ip string, settings EmailVerificationSettings) (*PasswordResetChallenge, string, error) {
+	settings.applyDefaults()
+	if err := settings.validate(); err != nil {
+		return nil, "", err
+	}
+	normalizedEmail := NormalizeEmailForVerification(email)
+	if normalizedEmail == "" {
+		return nil, "", fmt.Errorf("email is required")
+	}
+	now := time.Now()
+	cooldownSince := now.Add(-time.Duration(settings.ResendCooldownSeconds) * time.Second)
+	var recentUnused int64
+	if err := DB.Model(&model.EmailVerificationToken{}).
+		Where("user_id = ? AND email = ? AND purpose = ? AND used_at IS NULL AND created_at > ?", userID, normalizedEmail, model.EmailVerificationPurposePasswordReset, cooldownSince).
+		Count(&recentUnused).Error; err != nil {
+		return nil, "", err
+	}
+	if recentUnused > 0 {
+		return nil, "", ErrEmailVerificationCooldown
+	}
+	dayStart := now.Add(-24 * time.Hour)
+	var dailyCount int64
+	if err := DB.Model(&model.EmailVerificationToken{}).
+		Where("user_id = ? AND email = ? AND purpose = ? AND created_at > ?", userID, normalizedEmail, model.EmailVerificationPurposePasswordReset, dayStart).
+		Count(&dailyCount).Error; err != nil {
+		return nil, "", err
+	}
+	if dailyCount >= int64(settings.DailySendLimitPerUser) {
+		return nil, "", ErrEmailVerificationDailyLimit
+	}
+	rawToken, err := generatePasswordResetToken()
+	if err != nil {
+		return nil, "", err
+	}
+	codeHash, err := s.hashCode(rawToken)
+	if err != nil {
+		return nil, "", err
+	}
+	expiresAt := now.Add(time.Duration(settings.CodeTTLMinutes) * time.Minute)
+	token := &model.EmailVerificationToken{UserId: userID, Email: normalizedEmail, Purpose: model.EmailVerificationPurposePasswordReset, CodeHash: codeHash, ExpiresAt: expiresAt, Ip: ip}
+	if err := DB.Transaction(func(tx *gorm.DB) error {
+		usedAt := now
+		if err := tx.Model(&model.EmailVerificationToken{}).
+			Where("user_id = ? AND email = ? AND purpose = ? AND used_at IS NULL", userID, normalizedEmail, model.EmailVerificationPurposePasswordReset).
+			Update("used_at", usedAt).Error; err != nil {
+			return err
+		}
+		return tx.Create(token).Error
+	}); err != nil {
+		return nil, "", err
+	}
+	return &PasswordResetChallenge{ID: token.Id, UserID: userID, Email: token.Email, ExpiresAt: token.ExpiresAt}, rawToken, nil
+}
+
+func (s *EmailVerificationService) ResetPasswordWithToken(rawToken, password string) error {
+	trimmedToken := strings.TrimSpace(rawToken)
+	if trimmedToken == "" {
+		return ErrEmailVerificationInvalidCode
+	}
+	passwordHash, err := utils.EncryptPassword(password)
+	if err != nil {
+		return err
+	}
+	wantedHash, err := s.hashCode(trimmedToken)
+	if err != nil {
+		return err
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var token model.EmailVerificationToken
+		if err := tx.Where("purpose = ? AND code_hash = ?", model.EmailVerificationPurposePasswordReset, wantedHash).
+			Order("created_at DESC").
+			First(&token).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrEmailVerificationInvalidCode
+			}
+			return err
+		}
+		if token.UsedAt != nil {
+			return ErrEmailVerificationAlreadyUsed
+		}
+		if time.Now().After(token.ExpiresAt) {
+			return ErrEmailVerificationExpired
+		}
+		now := time.Now()
+		result := tx.Model(&model.EmailVerificationToken{}).
+			Where("id = ? AND used_at IS NULL", token.Id).
+			Update("used_at", now)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return ErrEmailVerificationAlreadyUsed
+		}
+		if err := tx.Model(&model.User{}).Where("id = ?", token.UserId).Update("password", passwordHash).Error; err != nil {
+			return err
+		}
+		return tx.Where("user_id = ?", token.UserId).Delete(&model.UserToken{}).Error
+	})
 }
 
 func (s *EmailVerificationService) VerifyCode(userID uint, email, purpose, code string) (*model.EmailVerificationToken, error) {
@@ -244,7 +353,7 @@ func NormalizeEmailForVerification(email string) string {
 
 func validateEmailVerificationPurpose(purpose string) error {
 	switch purpose {
-	case model.EmailVerificationPurposeRegister, model.EmailVerificationPurposeChangeEmail, model.EmailVerificationPurposeVerifyCurrent:
+	case model.EmailVerificationPurposeRegister, model.EmailVerificationPurposeChangeEmail, model.EmailVerificationPurposeVerifyCurrent, model.EmailVerificationPurposePasswordReset:
 		return nil
 	default:
 		return ErrEmailVerificationInvalidPurpose
@@ -261,6 +370,14 @@ func generateEmailVerificationCode() (string, error) {
 		b.WriteByte(byte('0' + n.Int64()))
 	}
 	return b.String(), nil
+}
+
+func generatePasswordResetToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
 func (s *EmailVerificationService) hashCode(code string) (string, error) {

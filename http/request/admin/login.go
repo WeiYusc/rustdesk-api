@@ -12,6 +12,12 @@ type ForgotPasswordRequest struct {
 	Email string `json:"email" validate:"required,email" label:"邮箱"`
 }
 
+type ForgotPasswordResetRequest struct {
+	Token           string `json:"token" validate:"required" label:"重置令牌"`
+	Password        string `json:"password" validate:"required,gte=4,lte=32" label:"密码"`
+	ConfirmPassword string `json:"confirm_password" validate:"required,gte=4,lte=32" label:"确认密码"`
+}
+
 type SMTPTestRequest struct {
 	To string `json:"to" validate:"required,email" label:"收件邮箱"`
 }

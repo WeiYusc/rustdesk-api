@@ -6,6 +6,7 @@ const (
 	EmailVerificationPurposeRegister      = "register"
 	EmailVerificationPurposeChangeEmail   = "change_email"
 	EmailVerificationPurposeVerifyCurrent = "verify_current"
+	EmailVerificationPurposePasswordReset = "password_reset"
 )
 
 type EmailVerificationToken struct {
