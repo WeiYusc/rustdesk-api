@@ -22,6 +22,7 @@ func Init(g *gin.Engine) {
 	adg := g.Group("/api/admin")
 	LoginBind(adg)
 	adg.POST("/user/register", (&admin.User{}).Register)
+	adg.POST("/user/register/email/send", (&admin.User{}).SendRegisterVerification)
 
 	ConfigBind(adg)
 	PasskeyBind(adg)

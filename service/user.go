@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/lejianwen/rustdesk-api/v2/model"
+	"github.com/lejianwen/rustdesk-api/v2/model/custom_types"
 	"github.com/lejianwen/rustdesk-api/v2/utils"
 	"gorm.io/gorm"
 )
@@ -480,6 +481,40 @@ func (us *UserService) Register(username string, email string, password string, 
 		return nil
 	}
 	return u
+}
+
+func (us *UserService) RegisterWithVerifiedEmail(username string, email string, password string, status model.StatusCode, emailCode string) (*model.User, error) {
+	normalizedEmail := NormalizeEmailForVerification(email)
+	if normalizedEmail == "" {
+		return nil, errors.New("EmailRequired")
+	}
+	formattedUsername := us.formatUsername(username)
+	if us.IsUsernameExists(formattedUsername) {
+		return nil, errors.New("UsernameExists")
+	}
+	passwordHash, err := utils.EncryptPassword(password)
+	if err != nil {
+		return nil, err
+	}
+	verifiedAt := custom_types.AutoTime(time.Now())
+	u := &model.User{
+		Username:        formattedUsername,
+		Email:           normalizedEmail,
+		EmailVerifiedAt: &verifiedAt,
+		Password:        passwordHash,
+		GroupId:         1,
+		Status:          status,
+	}
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		if _, err := AllService.EmailVerificationService.verifyCode(tx, 0, normalizedEmail, model.EmailVerificationPurposeRegister, emailCode); err != nil {
+			return err
+		}
+		return tx.Create(u).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return u, nil
 }
 
 func (us *UserService) TokenList(page uint, size uint, f func(tx *gorm.DB)) *model.UserTokenList {

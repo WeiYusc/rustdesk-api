@@ -2,8 +2,12 @@ package admin
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"net/mail"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/lejianwen/rustdesk-api/v2/global"
@@ -379,6 +383,195 @@ func (ct *User) GroupUsers(c *gin.Context) {
 	})
 }
 
+type registerEmailSendRequest struct {
+	Email string `json:"email"`
+}
+
+type registerEmailRateLimitBucket struct {
+	lastSend time.Time
+	sends    []time.Time
+}
+
+type registerEmailRateLimitSnapshot struct {
+	global registerEmailRateLimitBucket
+	ips    map[string]registerEmailRateLimitBucket
+}
+
+var registerEmailRateLimitState = struct {
+	sync.Mutex
+	global  registerEmailRateLimitBucket
+	buckets map[string]registerEmailRateLimitBucket
+}{buckets: map[string]registerEmailRateLimitBucket{}}
+
+func resetRegisterEmailRateLimiterForTest(t cleanupRegistrar) {
+	registerEmailRateLimitState.Lock()
+	previous := registerEmailRateLimitSnapshot{global: registerEmailRateLimitState.global, ips: registerEmailRateLimitState.buckets}
+	registerEmailRateLimitState.global = registerEmailRateLimitBucket{}
+	registerEmailRateLimitState.buckets = map[string]registerEmailRateLimitBucket{}
+	registerEmailRateLimitState.Unlock()
+	t.Cleanup(func() {
+		registerEmailRateLimitState.Lock()
+		registerEmailRateLimitState.global = previous.global
+		registerEmailRateLimitState.buckets = previous.ips
+		registerEmailRateLimitState.Unlock()
+	})
+}
+
+func allowRegisterEmailSend(ip string, now time.Time) bool {
+	const ipCooldown = 60 * time.Second
+	const ipDailyLimit = 50
+	const globalCooldown = time.Second
+	const globalDailyLimit = 1000
+	key := strings.TrimSpace(ip)
+	if key == "" {
+		key = "unknown"
+	}
+	registerEmailRateLimitState.Lock()
+	defer registerEmailRateLimitState.Unlock()
+	globalBucket := pruneRegisterEmailRateLimitBucket(registerEmailRateLimitState.global, now)
+	if !globalBucket.lastSend.IsZero() && now.Sub(globalBucket.lastSend) < globalCooldown {
+		registerEmailRateLimitState.global = globalBucket
+		return false
+	}
+	if len(globalBucket.sends) >= globalDailyLimit {
+		registerEmailRateLimitState.global = globalBucket
+		return false
+	}
+	bucket := pruneRegisterEmailRateLimitBucket(registerEmailRateLimitState.buckets[key], now)
+	if !bucket.lastSend.IsZero() && now.Sub(bucket.lastSend) < ipCooldown {
+		registerEmailRateLimitState.buckets[key] = bucket
+		registerEmailRateLimitState.global = globalBucket
+		return false
+	}
+	if len(bucket.sends) >= ipDailyLimit {
+		registerEmailRateLimitState.buckets[key] = bucket
+		registerEmailRateLimitState.global = globalBucket
+		return false
+	}
+	globalBucket.lastSend = now
+	globalBucket.sends = append(globalBucket.sends, now)
+	bucket.lastSend = now
+	bucket.sends = append(bucket.sends, now)
+	registerEmailRateLimitState.global = globalBucket
+	registerEmailRateLimitState.buckets[key] = bucket
+	pruneRegisterEmailRateLimitIPs(now)
+	return true
+}
+
+func pruneRegisterEmailRateLimitBucket(bucket registerEmailRateLimitBucket, now time.Time) registerEmailRateLimitBucket {
+	dayStart := now.Add(-24 * time.Hour)
+	kept := bucket.sends[:0]
+	for _, sentAt := range bucket.sends {
+		if sentAt.After(dayStart) {
+			kept = append(kept, sentAt)
+		}
+	}
+	bucket.sends = kept
+	if !bucket.lastSend.IsZero() && bucket.lastSend.Before(dayStart) {
+		bucket.lastSend = time.Time{}
+	}
+	return bucket
+}
+
+func pruneRegisterEmailRateLimitIPs(now time.Time) {
+	if len(registerEmailRateLimitState.buckets) <= 4096 {
+		return
+	}
+	dayStart := now.Add(-24 * time.Hour)
+	for key, bucket := range registerEmailRateLimitState.buckets {
+		if bucket.lastSend.Before(dayStart) {
+			delete(registerEmailRateLimitState.buckets, key)
+		}
+	}
+}
+
+func respondRegisterEmailSendSuppressed(c *gin.Context) {
+	response.Success(c, gin.H{"ok": true})
+}
+
+func (ct *User) SendRegisterVerification(c *gin.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			if global.Logger != nil {
+				global.Logger.Warnf("register email verification send recovered: %v", r)
+			}
+			respondRegisterEmailSendSuppressed(c)
+		}
+	}()
+	policy, err := service.AllService.SettingsService.GetRegisterPolicy()
+	if err != nil {
+		if global.Logger != nil {
+			global.Logger.Warnf("register email verification policy lookup failed: %v", err)
+		}
+		respondRegisterEmailSendSuppressed(c)
+		return
+	}
+	if !policy.Enabled {
+		response.Fail(c, 101, response.TranslateMsg(c, "RegisterClosed"))
+		return
+	}
+	settings, err := service.AllService.SettingsService.GetEmailVerification()
+	if err != nil {
+		if global.Logger != nil {
+			global.Logger.Warnf("register email verification settings lookup failed: %v", err)
+		}
+		respondRegisterEmailSendSuppressed(c)
+		return
+	}
+	if !settings.Enabled || !settings.RequireForRegister {
+		response.Fail(c, 101, response.TranslateMsg(c, "EmailVerificationDisabled"))
+		return
+	}
+	var form registerEmailSendRequest
+	if err := c.ShouldBindJSON(&form); err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+err.Error())
+		return
+	}
+	email := service.NormalizeEmailForVerification(form.Email)
+	parsedEmail, parseErr := mail.ParseAddress(email)
+	if email == "" || parseErr != nil || parsedEmail.Address != email {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError"))
+		return
+	}
+	smtpSettings, err := service.AllService.SettingsService.GetSMTPForSend()
+	if err != nil {
+		if global.Logger != nil {
+			global.Logger.Warnf("register email verification SMTP lookup failed: %v", err)
+		}
+		respondRegisterEmailSendSuppressed(c)
+		return
+	}
+	if !smtpSettings.Ready() {
+		response.Fail(c, 101, response.TranslateMsg(c, "SMTPNotConfigured"))
+		return
+	}
+	if !allowRegisterEmailSend(c.ClientIP(), time.Now()) {
+		respondRegisterEmailSendSuppressed(c)
+		return
+	}
+	challenge, code, err := service.AllService.EmailVerificationService.CreateCode(0, email, model.EmailVerificationPurposeRegister, c.ClientIP(), settings)
+	if err != nil {
+		respondRegisterEmailSendSuppressed(c)
+		return
+	}
+	message := service.SMTPMessage{
+		To:       challenge.Email,
+		Subject:  "Verify your registration email address",
+		TextBody: fmt.Sprintf("Your registration verification code is %s. It expires at %s.", code, challenge.ExpiresAt.Format(time.RFC3339)),
+	}
+	if err := sendEmailVerificationMessage(c.Request.Context(), smtpSettings, message); err != nil {
+		if markErr := service.AllService.EmailVerificationService.MarkChallengeUsed(challenge.ID); markErr != nil && global.Logger != nil {
+			global.Logger.Warnf("register email verification challenge cleanup failed: %v", markErr)
+		}
+		if global.Logger != nil {
+			global.Logger.Warnf("register email verification send failed: %v", err)
+		}
+		respondRegisterEmailSendSuppressed(c)
+		return
+	}
+	response.Success(c, emailVerificationSendResponse{ChallengeID: challenge.ID, Email: challenge.Email, ExpiresAt: challenge.ExpiresAt})
+}
+
 // Register
 func (ct *User) Register(c *gin.Context) {
 	policy, err := service.AllService.SettingsService.GetRegisterPolicy()
@@ -427,10 +620,24 @@ func (ct *User) Register(c *gin.Context) {
 		regStatus = model.COMMON_STATUS_ENABLE
 	}
 
-	u := service.AllService.UserService.Register(f.Username, f.Email, f.Password, regStatus)
-	if u == nil || u.Id == 0 {
-		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed"))
-		return
+	var u *model.User
+	if requireEmail {
+		if strings.TrimSpace(f.EmailCode) == "" {
+			response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+"EmailCodeRequired")
+			return
+		}
+		var registerErr error
+		u, registerErr = service.AllService.UserService.RegisterWithVerifiedEmail(f.Username, f.Email, f.Password, regStatus, f.EmailCode)
+		if registerErr != nil {
+			response.Fail(c, 101, translateUserServiceError(c, "OperationFailed", registerErr))
+			return
+		}
+	} else {
+		u = service.AllService.UserService.Register(f.Username, f.Email, f.Password, regStatus)
+		if u == nil || u.Id == 0 {
+			response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed"))
+			return
+		}
 	}
 	if regStatus == model.COMMON_STATUS_DISABLED {
 		// 需要管理员审核

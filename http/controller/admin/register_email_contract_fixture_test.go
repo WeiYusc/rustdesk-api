@@ -128,7 +128,7 @@ func TestAdminRegisterRequiresEmailWhenVerificationRequiresRegister(t *testing.T
 	}
 }
 
-func TestAdminRegisterAllowsValidEmailWhenVerificationRequiresRegister(t *testing.T) {
+func TestAdminRegisterRejectsValidEmailWithoutCodeWhenVerificationRequiresRegister(t *testing.T) {
 	engine, db := setupAdminRegisterEmailContractFixture(t)
 	if err := service.AllService.SettingsService.SaveRegisterPolicy(service.RegisterPolicySettings{Enabled: true, DefaultStatus: int(model.COMMON_STATUS_DISABLED)}, 1); err != nil {
 		t.Fatalf("save register policy: %v", err)
@@ -141,15 +141,15 @@ func TestAdminRegisterAllowsValidEmailWhenVerificationRequiresRegister(t *testin
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("register status = %d, want %d; body=%q", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
-	if code := decodeAdminRegisterResponseCode(t, recorder.Body.Bytes()); code != 0 {
-		t.Fatalf("register with valid required email code = %d, want pending-approval success code 0; body=%q", code, recorder.Body.String())
+	if code := decodeAdminRegisterResponseCode(t, recorder.Body.Bytes()); code != 101 {
+		t.Fatalf("register with required email but missing code = %d, want 101; body=%q", code, recorder.Body.String())
 	}
-	var user model.User
-	if err := db.Where("username = ?", "valid-email-required-user").First(&user).Error; err != nil {
-		t.Fatalf("query registered user: %v", err)
+	var count int64
+	if err := db.Model(&model.User{}).Where("username = ?", "valid-email-required-user").Count(&count).Error; err != nil {
+		t.Fatalf("count created users: %v", err)
 	}
-	if user.Email != "valid@example.test" || user.Status != model.COMMON_STATUS_DISABLED {
-		t.Fatalf("registered user = %#v, want trimmed email and disabled status", user)
+	if count != 0 {
+		t.Fatalf("register without code created %d users", count)
 	}
 }
 
