@@ -30,6 +30,12 @@ func TestUserFacingI18nKeysExistInAllLocales(t *testing.T) {
 		"PasswordLoginDisableRequiresFallback",
 		"EmailVerificationRequiresSMTP",
 		"EmailVerificationLoginRequiresVerifiedAdmins",
+		"SMTPTestConnectionFailed",
+		"SMTPTestAuthFailed",
+		"SMTPTestTLSFailed",
+		"SMTPTestRejected",
+		"SMTPTestTimeout",
+		"SMTPTestFailed",
 	}
 	for _, locale := range locales {
 		content, err := os.ReadFile(locale)

@@ -257,3 +257,27 @@ other = "郵箱驗證碼功能需要完整的 SMTP 設定。請先設定並測�
 [EmailVerificationLoginRequiresVerifiedAdmins]
 description = "EmailVerificationLoginRequiresVerifiedAdmins"
 other = "仍有已啟用管理員帳號未驗證郵箱，不能啟用登入郵箱驗證。"
+
+[SMTPTestConnectionFailed]
+description = "SMTPTestConnectionFailed"
+other = "無法連接到 SMTP 伺服器。請檢查伺服器位址、連接埠和網路連通性。"
+
+[SMTPTestAuthFailed]
+description = "SMTPTestAuthFailed"
+other = "SMTP 驗證失敗。請檢查 SMTP 使用者名稱和密碼。"
+
+[SMTPTestTLSFailed]
+description = "SMTPTestTLSFailed"
+other = "SMTP TLS 協商失敗。請檢查加密方式和憑證設定。"
+
+[SMTPTestRejected]
+description = "SMTPTestRejected"
+other = "SMTP 伺服器拒絕了寄件者或收件者位址。請檢查寄件郵箱和收件郵箱。"
+
+[SMTPTestTimeout]
+description = "SMTPTestTimeout"
+other = "SMTP 測試逾時。請檢查伺服器位址、連接埠和逾時時間。"
+
+[SMTPTestFailed]
+description = "SMTPTestFailed"
+other = "SMTP 測試郵件傳送失敗。請檢查 SMTP 設定和服務端日誌。"

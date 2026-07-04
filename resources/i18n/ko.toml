@@ -251,3 +251,27 @@ other = "Email-code requirements need a complete SMTP configuration. Configure a
 [EmailVerificationLoginRequiresVerifiedAdmins]
 description = "EmailVerificationLoginRequiresVerifiedAdmins"
 other = "Login email verification cannot be enabled while any enabled administrator account has an unverified email address."
+
+[SMTPTestConnectionFailed]
+description = "SMTPTestConnectionFailed"
+other = "Could not connect to the SMTP server. Check the host, port, and network connectivity."
+
+[SMTPTestAuthFailed]
+description = "SMTPTestAuthFailed"
+other = "SMTP authentication failed. Check the SMTP username and password."
+
+[SMTPTestTLSFailed]
+description = "SMTPTestTLSFailed"
+other = "SMTP TLS negotiation failed. Check the encryption mode and certificate settings."
+
+[SMTPTestRejected]
+description = "SMTPTestRejected"
+other = "The SMTP server rejected the sender or recipient address. Check the from and recipient addresses."
+
+[SMTPTestTimeout]
+description = "SMTPTestTimeout"
+other = "SMTP test timed out. Check the server address, port, and timeout setting."
+
+[SMTPTestFailed]
+description = "SMTPTestFailed"
+other = "SMTP test email failed. Check the SMTP settings and server logs."
