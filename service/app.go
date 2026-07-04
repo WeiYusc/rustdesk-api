@@ -1,12 +1,23 @@
 package service
 
 import (
+	"encoding/json"
 	"os"
 	"sync"
 	"time"
 )
 
 type AppService struct {
+}
+
+type BuildInfo struct {
+	Version      string `json:"version"`
+	ServerCommit string `json:"server_commit"`
+	APICommit    string `json:"api_commit"`
+	WebCommit    string `json:"web_commit"`
+	Image        string `json:"image"`
+	BuiltAt      string `json:"built_at"`
+	Source       string `json:"source"`
 }
 
 var version = ""
@@ -26,6 +37,28 @@ func (a *AppService) GetAppVersion() string {
 
 	})
 	return version
+}
+
+func (a *AppService) GetBuildInfo() BuildInfo {
+	path := os.Getenv("RUSTDESK_API_BUILD_INFO_FILE")
+	if path == "" {
+		path = "/etc/rustdesk-full-s6-build.json"
+	}
+	return a.GetBuildInfoFromPath(path)
+}
+
+func (a *AppService) GetBuildInfoFromPath(path string) BuildInfo {
+	info := BuildInfo{Version: a.GetAppVersion()}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return info
+	}
+	if err := json.Unmarshal(raw, &info); err != nil {
+		return BuildInfo{Version: a.GetAppVersion()}
+	}
+	info.Version = a.GetAppVersion()
+	info.Source = path
+	return info
 }
 
 func init() {

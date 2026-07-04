@@ -58,7 +58,7 @@ func (i *Index) Heartbeat(c *gin.Context) {
 	if peer.UserId == 0 || peer.Alias != "" {
 		//如果在40s以内则不更新
 		if time.Now().Unix()-peer.LastOnlineTime >= 30 {
-			ab := service.AllService.AddressBookService.InfoByUserIdAndId(1, info.Id)//别名只同步全员地址簿，私人地址簿数据不同步
+			ab := service.AllService.AddressBookService.InfoByUserIdAndId(1, info.Id) //别名只同步全员地址簿，私人地址簿数据不同步
 			var upp *model.Peer
 			if ab == nil || ab.RowId == 0 {
 				upp = &model.Peer{RowId: peer.RowId, LastOnlineTime: time.Now().Unix(), LastOnlineIp: c.ClientIP()}
@@ -67,8 +67,8 @@ func (i *Index) Heartbeat(c *gin.Context) {
 			}
 			service.AllService.PeerService.Update(upp)
 		}
-	} else {//删除已登录的未绑定被控端
-		service.AllService.PeerService.Delete(peer);
+	} else { //删除已登录的未绑定被控端
+		service.AllService.PeerService.Delete(peer)
 	}
 	c.JSON(http.StatusOK, gin.H{})
 }
@@ -88,5 +88,21 @@ func (i *Index) Version(c *gin.Context) {
 	response.Success(
 		c,
 		v,
+	)
+}
+
+// BuildInfo 构建信息
+// @Tags 首页
+// @Summary 构建信息
+// @Description 构建信息
+// @Accept  json
+// @Produce  json
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /build-info [get]
+func (i *Index) BuildInfo(c *gin.Context) {
+	response.Success(
+		c,
+		service.AllService.AppService.GetBuildInfo(),
 	)
 }

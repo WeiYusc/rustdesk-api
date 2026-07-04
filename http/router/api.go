@@ -30,6 +30,7 @@ func ApiInit(g *gin.Engine) {
 		i := &api.Index{}
 		frg.GET("/", i.Index)
 		frg.GET("/version", i.Version)
+		frg.GET("/build-info", i.BuildInfo)
 
 		reporting.POST("/heartbeat", i.Heartbeat)
 	}
