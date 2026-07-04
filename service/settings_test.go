@@ -2,10 +2,12 @@ package service
 
 import (
 	"testing"
+	"time"
 
 	"github.com/lejianwen/rustdesk-api/v2/config"
 	"github.com/lejianwen/rustdesk-api/v2/global"
 	"github.com/lejianwen/rustdesk-api/v2/model"
+	"github.com/lejianwen/rustdesk-api/v2/model/custom_types"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -316,6 +318,70 @@ func TestSettingsServiceRejectsPasswordDisableWithOauthProviderButNoAdminBinding
 	}
 	if err := svc.SaveAuthPolicy(AuthPolicySettings{DisablePasswordLogin: true}, 1); err != nil {
 		t.Fatalf("SaveAuthPolicy with admin oauth binding fallback error: %v", err)
+	}
+}
+
+func TestSettingsServiceRejectsEmailVerificationCodeRequirementsWithoutReadySMTP(t *testing.T) {
+	setupSettingsServiceTestDB(t)
+	svc := &SettingsService{}
+
+	if err := svc.SaveEmailVerification(EmailVerificationSettings{Enabled: true, RequireForRegister: true}, 1); err == nil {
+		t.Fatalf("SaveEmailVerification enabled register codes without ready SMTP succeeded")
+	} else if err.Error() != "EmailVerificationRequiresSMTP" {
+		t.Fatalf("SaveEmailVerification register SMTP error = %v", err)
+	}
+
+	if err := svc.SaveEmailVerification(EmailVerificationSettings{Enabled: true, RequireForEmailChange: true}, 1); err == nil {
+		t.Fatalf("SaveEmailVerification enabled email-change codes without ready SMTP succeeded")
+	} else if err.Error() != "EmailVerificationRequiresSMTP" {
+		t.Fatalf("SaveEmailVerification email-change SMTP error = %v", err)
+	}
+
+	if err := svc.SaveSMTP(SMTPSettings{Enabled: true, Host: "smtp.example.test", Port: 587, Security: SMTPSecurityStartTLS, FromEmail: "noreply@example.test", TimeoutSeconds: 10}, 1); err != nil {
+		t.Fatalf("save ready smtp: %v", err)
+	}
+	if err := svc.SaveEmailVerification(EmailVerificationSettings{Enabled: true, RequireForRegister: true}, 1); err != nil {
+		t.Fatalf("SaveEmailVerification with ready SMTP error: %v", err)
+	}
+}
+
+func TestSettingsServiceRejectsLoginEmailVerificationWhenEnabledAdminIsUnverified(t *testing.T) {
+	db := setupSettingsServiceTestDB(t)
+	svc := &SettingsService{}
+	isAdmin := true
+	if err := db.Create(&model.User{Username: "admin", Email: "admin@example.test", Status: model.COMMON_STATUS_ENABLE, IsAdmin: &isAdmin}).Error; err != nil {
+		t.Fatalf("create unverified admin: %v", err)
+	}
+	if err := svc.SaveSMTP(SMTPSettings{Enabled: true, Host: "smtp.example.test", Port: 587, Security: SMTPSecurityStartTLS, FromEmail: "noreply@example.test", TimeoutSeconds: 10}, 1); err != nil {
+		t.Fatalf("save ready smtp: %v", err)
+	}
+
+	err := svc.SaveEmailVerification(EmailVerificationSettings{Enabled: true, RequireForLogin: true}, 1)
+	if err == nil {
+		t.Fatalf("SaveEmailVerification enabled login requirement with unverified admin succeeded")
+	}
+	if err.Error() != "EmailVerificationLoginRequiresVerifiedAdmins" {
+		t.Fatalf("SaveEmailVerification error = %v", err)
+	}
+}
+
+func TestSettingsServiceAllowsLoginEmailVerificationWhenEnabledAdminsAreVerified(t *testing.T) {
+	db := setupSettingsServiceTestDB(t)
+	svc := &SettingsService{}
+	isAdmin := true
+	verifiedAt := custom_types.AutoTime(time.Now())
+	if err := db.Create(&model.User{Username: "admin", Email: "admin@example.test", Status: model.COMMON_STATUS_ENABLE, IsAdmin: &isAdmin, EmailVerifiedAt: &verifiedAt}).Error; err != nil {
+		t.Fatalf("create verified admin: %v", err)
+	}
+	if err := db.Create(&model.User{Username: "disabled-admin", Email: "disabled@example.test", Status: model.COMMON_STATUS_DISABLED, IsAdmin: &isAdmin}).Error; err != nil {
+		t.Fatalf("create disabled unverified admin: %v", err)
+	}
+	if err := svc.SaveSMTP(SMTPSettings{Enabled: true, Host: "smtp.example.test", Port: 587, Security: SMTPSecurityStartTLS, FromEmail: "noreply@example.test", TimeoutSeconds: 10}, 1); err != nil {
+		t.Fatalf("save ready smtp: %v", err)
+	}
+
+	if err := svc.SaveEmailVerification(EmailVerificationSettings{Enabled: true, RequireForLogin: true}, 1); err != nil {
+		t.Fatalf("SaveEmailVerification with verified enabled admins error: %v", err)
 	}
 }
 

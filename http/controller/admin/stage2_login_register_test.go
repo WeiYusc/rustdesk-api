@@ -120,6 +120,9 @@ func TestAdminLoginEmailVerificationRequireForLogin(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			fixture := setupStage2AdminFixture(t)
+			if err := service.AllService.SettingsService.SaveSMTP(service.SMTPSettings{Enabled: true, Host: "smtp.example.test", Port: 587, Security: service.SMTPSecurityStartTLS, FromEmail: "noreply@example.test", FromName: "RustDesk Test", TimeoutSeconds: 10}, 1); err != nil {
+				t.Fatalf("save smtp settings: %v", err)
+			}
 			if err := service.AllService.SettingsService.SaveEmailVerification(tc.settings, 1); err != nil {
 				t.Fatalf("save email verification settings: %v", err)
 			}

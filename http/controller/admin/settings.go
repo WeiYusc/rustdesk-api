@@ -169,7 +169,7 @@ func (s *Settings) UpdateEmailVerification(c *gin.Context) {
 		updatedBy = user.Id
 	}
 	if err := service.AllService.SettingsService.SaveEmailVerification(settings, updatedBy); err != nil {
-		response.Fail(c, 101, err.Error())
+		response.Fail(c, 101, translateSettingsError(c, err))
 		return
 	}
 	updated, err := service.AllService.SettingsService.GetEmailVerification()
@@ -233,7 +233,7 @@ func (s *Settings) UpdateAuthPolicy(c *gin.Context) {
 		updatedBy = user.Id
 	}
 	if err := service.AllService.SettingsService.SaveAuthPolicy(settings, updatedBy); err != nil {
-		response.Fail(c, 101, err.Error())
+		response.Fail(c, 101, translateSettingsError(c, err))
 		return
 	}
 	updated, err := service.AllService.SettingsService.GetAuthPolicy()
@@ -242,4 +242,13 @@ func (s *Settings) UpdateAuthPolicy(c *gin.Context) {
 		return
 	}
 	response.Success(c, updated)
+}
+
+func translateSettingsError(c *gin.Context, err error) string {
+	switch err.Error() {
+	case "PasswordLoginDisableRequiresFallback", "EmailVerificationRequiresSMTP", "EmailVerificationLoginRequiresVerifiedAdmins":
+		return response.TranslateMsg(c, err.Error())
+	default:
+		return err.Error()
+	}
 }

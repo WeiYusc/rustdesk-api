@@ -238,3 +238,15 @@ other = "忘记密码邮件发送功能尚未实现。"
 [DirectEmailChangeRequiresVerification]
 description = "DirectEmailChangeRequiresVerification"
 other = "邮箱变更需要先完成验证码验证，请使用邮箱验证流程修改邮箱。"
+
+[PasswordLoginDisableRequiresFallback]
+description = "PasswordLoginDisableRequiresFallback"
+other = "禁用密码登录前，必须至少有一个管理员可用的其他登录方式。"
+
+[EmailVerificationRequiresSMTP]
+description = "EmailVerificationRequiresSMTP"
+other = "邮箱验证码功能需要完整的 SMTP 配置。请先配置并测试 SMTP。"
+
+[EmailVerificationLoginRequiresVerifiedAdmins]
+description = "EmailVerificationLoginRequiresVerifiedAdmins"
+other = "仍有已启用管理员账号未验证邮箱，不能开启登录邮箱验证。"

@@ -177,6 +177,16 @@ func (s *SettingsService) SaveEmailVerification(settings EmailVerificationSettin
 	if err := settings.validate(); err != nil {
 		return err
 	}
+	if settings.Enabled && settings.requiresEmailCodeDelivery() {
+		if err := s.ensureEmailVerificationSMTPReady(); err != nil {
+			return err
+		}
+	}
+	if settings.Enabled && settings.RequireForLogin {
+		if err := s.ensureLoginEmailVerificationSafe(); err != nil {
+			return err
+		}
+	}
 	return s.saveJSONSetting(SettingKeyEmailVerification, settings, false, updatedBy)
 }
 
@@ -238,6 +248,31 @@ func (s *SettingsService) SaveRegisterPolicy(settings RegisterPolicySettings, up
 		return err
 	}
 	return s.saveJSONSetting(SettingKeyRegisterPolicy, settings, false, updatedBy)
+}
+
+func (s *SettingsService) ensureLoginEmailVerificationSafe() error {
+	var count int64
+	err := DB.Model(&model.User{}).
+		Where("status = ? and coalesce(is_admin, false) = ? and email_verified_at is null", model.COMMON_STATUS_ENABLE, true).
+		Count(&count).Error
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return fmt.Errorf("EmailVerificationLoginRequiresVerifiedAdmins")
+	}
+	return nil
+}
+
+func (s *SettingsService) ensureEmailVerificationSMTPReady() error {
+	smtpSettings, err := s.GetSMTPForSend()
+	if err != nil {
+		return err
+	}
+	if !smtpSettings.Ready() {
+		return fmt.Errorf("EmailVerificationRequiresSMTP")
+	}
+	return nil
 }
 
 func (s *SettingsService) ensurePasswordDisableHasFallback() error {
@@ -410,6 +445,10 @@ func (s EmailVerificationSettings) validate() error {
 		return fmt.Errorf("email verification daily limit must be between 1 and 1000")
 	}
 	return nil
+}
+
+func (s EmailVerificationSettings) requiresEmailCodeDelivery() bool {
+	return s.RequireForRegister || s.RequireForEmailChange || s.RequireForLogin
 }
 
 func (s *PasskeySettings) applyDefaults() {

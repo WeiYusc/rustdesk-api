@@ -245,3 +245,15 @@ other = "忘記密碼郵件寄送功能尚未實作。"
 [DirectEmailChangeRequiresVerification]
 description = "DirectEmailChangeRequiresVerification"
 other = "郵箱變更需要先完成驗證碼驗證，請使用郵箱驗證流程修改郵箱。"
+
+[PasswordLoginDisableRequiresFallback]
+description = "PasswordLoginDisableRequiresFallback"
+other = "停用密碼登入前，必須至少有一個管理員可用的其他登入方式。"
+
+[EmailVerificationRequiresSMTP]
+description = "EmailVerificationRequiresSMTP"
+other = "郵箱驗證碼功能需要完整的 SMTP 設定。請先設定並測試 SMTP。"
+
+[EmailVerificationLoginRequiresVerifiedAdmins]
+description = "EmailVerificationLoginRequiresVerifiedAdmins"
+other = "仍有已啟用管理員帳號未驗證郵箱，不能啟用登入郵箱驗證。"

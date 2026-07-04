@@ -93,11 +93,11 @@ func configureRegisterEmailFixture(t *testing.T) {
 	if err := service.AllService.SettingsService.SaveRegisterPolicy(service.RegisterPolicySettings{Enabled: true, DefaultStatus: int(model.COMMON_STATUS_DISABLED)}, 1); err != nil {
 		t.Fatalf("save register policy: %v", err)
 	}
-	if err := service.AllService.SettingsService.SaveEmailVerification(service.EmailVerificationSettings{Enabled: true, RequireForRegister: true}, 1); err != nil {
-		t.Fatalf("save email verification settings: %v", err)
-	}
 	if err := service.AllService.SettingsService.SaveSMTP(service.SMTPSettings{Enabled: true, Host: "smtp.example.test", Port: 587, Security: service.SMTPSecurityStartTLS, FromEmail: "noreply@example.test", FromName: "RustDesk Test", TimeoutSeconds: 10}, 1); err != nil {
 		t.Fatalf("save smtp settings: %v", err)
+	}
+	if err := service.AllService.SettingsService.SaveEmailVerification(service.EmailVerificationSettings{Enabled: true, RequireForRegister: true}, 1); err != nil {
+		t.Fatalf("save email verification settings: %v", err)
 	}
 }
 

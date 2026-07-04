@@ -37,7 +37,7 @@ func setupAdminSettingsFixture(t *testing.T) adminSettingsFixture {
 	if err != nil {
 		t.Fatalf("open sqlite settings fixture db: %v", err)
 	}
-	if err := db.AutoMigrate(&model.User{}, &model.UserToken{}, &model.Setting{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.UserToken{}, &model.Setting{}, &model.UserPasskey{}, &model.Oauth{}, &model.UserThird{}); err != nil {
 		t.Fatalf("migrate settings fixture models: %v", err)
 	}
 
@@ -173,6 +173,38 @@ func TestAdminSettingsSMTPReadUpdateAndMaskPassword(t *testing.T) {
 	}
 	if updatedPayload.Data.Host != "smtp.example.test" || updatedPayload.Data.Password != "" || !updatedPayload.Data.HasPassword {
 		t.Fatalf("updated SMTP payload = %#v", updatedPayload.Data)
+	}
+}
+
+func TestAdminSettingsTranslatesAuthSafetyGuardErrors(t *testing.T) {
+	fixture := setupAdminSettingsFixture(t)
+
+	disablePassword := adminSettingsRequest(fixture.router, http.MethodPost, "/api/admin/settings/auth-policy", `{"disable_password_login":true}`, fixture.adminToken)
+	assertAdminSettingsResponseCode(t, disablePassword, 101)
+	assertAdminSettingsResponseMessage(t, disablePassword, "Password login cannot be disabled until an administrator has another login method available.")
+
+	requireEmailLogin := adminSettingsRequest(fixture.router, http.MethodPost, "/api/admin/settings/email-verification", `{"enabled":true,"require_for_login":true,"code_ttl_minutes":10,"resend_cooldown_seconds":60,"daily_send_limit_per_user":10}`, fixture.adminToken)
+	assertAdminSettingsResponseCode(t, requireEmailLogin, 101)
+	assertAdminSettingsResponseMessage(t, requireEmailLogin, "Email-code requirements need a complete SMTP configuration. Configure and test SMTP first.")
+
+	if err := service.AllService.SettingsService.SaveSMTP(service.SMTPSettings{Enabled: true, Host: "smtp.example.test", Port: 587, Security: service.SMTPSecurityStartTLS, FromEmail: "noreply@example.test", TimeoutSeconds: 10}, 1); err != nil {
+		t.Fatalf("save smtp settings: %v", err)
+	}
+	requireEmailLoginWithUnverifiedAdmin := adminSettingsRequest(fixture.router, http.MethodPost, "/api/admin/settings/email-verification", `{"enabled":true,"require_for_login":true,"code_ttl_minutes":10,"resend_cooldown_seconds":60,"daily_send_limit_per_user":10}`, fixture.adminToken)
+	assertAdminSettingsResponseCode(t, requireEmailLoginWithUnverifiedAdmin, 101)
+	assertAdminSettingsResponseMessage(t, requireEmailLoginWithUnverifiedAdmin, "Login email verification cannot be enabled while any enabled administrator account has an unverified email address.")
+}
+
+func assertAdminSettingsResponseMessage(t *testing.T, recorder *httptest.ResponseRecorder, want string) {
+	t.Helper()
+	var payload struct {
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response message: %v; body=%q", err, recorder.Body.String())
+	}
+	if payload.Message != want {
+		t.Fatalf("response message = %q, want %q; body=%q", payload.Message, want, recorder.Body.String())
 	}
 }
 

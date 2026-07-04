@@ -27,6 +27,9 @@ func TestUserFacingI18nKeysExistInAllLocales(t *testing.T) {
 		"LastAdminCannotDelete",
 		"LastAdminCannotUpdate",
 		"PasswordMismatch",
+		"PasswordLoginDisableRequiresFallback",
+		"EmailVerificationRequiresSMTP",
+		"EmailVerificationLoginRequiresVerifiedAdmins",
 	}
 	for _, locale := range locales {
 		content, err := os.ReadFile(locale)

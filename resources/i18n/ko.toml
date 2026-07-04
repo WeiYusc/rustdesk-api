@@ -239,3 +239,15 @@ other = "Forgot password email sending is not implemented yet."
 [DirectEmailChangeRequiresVerification]
 description = "DirectEmailChangeRequiresVerification"
 other = "Email changes require verification first. Please use the email verification flow to change your email address."
+
+[PasswordLoginDisableRequiresFallback]
+description = "PasswordLoginDisableRequiresFallback"
+other = "Password login cannot be disabled until an administrator has another login method available."
+
+[EmailVerificationRequiresSMTP]
+description = "EmailVerificationRequiresSMTP"
+other = "Email-code requirements need a complete SMTP configuration. Configure and test SMTP first."
+
+[EmailVerificationLoginRequiresVerifiedAdmins]
+description = "EmailVerificationLoginRequiresVerifiedAdmins"
+other = "Login email verification cannot be enabled while any enabled administrator account has an unverified email address."
