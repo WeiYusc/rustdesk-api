@@ -71,9 +71,9 @@ cp -a dist/. /path/to/rustdesk-api/resources/admin/
 
 之后 API 会通过 `/_admin/` 提供 Web Admin。
 
-### full-s6 集成部署（保留方案）
+### full-s6 集成部署（推荐完整栈）
 
-完整单容器集成部署由 `WeiYusc/rustdesk-server` 仓库构建：
+完整单容器集成部署由 `WeiYusc/rustdesk-server` 仓库构建并发布。普通部署建议优先使用 server 仓库的 GHCR 镜像与 Compose 文档；本仓库仍保留单独 API 运行和本地构建方式。
 
 ```bash
 RUSTDESK_API_SOURCE_DIR=/path/to/rustdesk-api \
@@ -84,9 +84,10 @@ RUSTDESK_FULL_S6_IMAGE=rustdesk-server-full-s6:local \
 
 当前状态：
 
-- 本地 full-s6 构建和 smoke 已通过。
-- 公共 Docker Hub/GHCR 镜像尚未发布。
-- 公开镜像完成前，文档中的 full-s6 运行方式仅作为“保留方案/本地构建方案”。
+- `linux/amd64` full-s6 稳定镜像已在 GHCR 发布：`ghcr.io/weiyusc/rustdesk-server-full-s6:v0.1.0`。
+- `latest` 是稳定版浮动标签；`preview` 保留为预览通道，不自动等同稳定版。
+- 本仓库源码包本身仍不包含构建后的 Web Admin；full-s6 镜像会从 `rustdesk-api-web` 构建并注入 Web Admin。
+- 部署、Compose、升级和发布边界以 server 仓库 `docs/full-s6/` 为准。
 
 ### CLI
 
@@ -177,9 +178,9 @@ cp -a dist/. /path/to/rustdesk-api/resources/admin/
 
 The API then serves Web Admin at `/_admin/`.
 
-### full-s6 integrated deployment (reserved option)
+### full-s6 integrated deployment (recommended full stack)
 
-The complete single-container stack is built from the `WeiYusc/rustdesk-server` repository:
+The complete single-container stack is built and published from the `WeiYusc/rustdesk-server` repository. For normal deployments, prefer the server repository GHCR image and Compose documentation; this repository still documents API-only and local-build flows.
 
 ```bash
 RUSTDESK_API_SOURCE_DIR=/path/to/rustdesk-api \
@@ -190,9 +191,10 @@ RUSTDESK_FULL_S6_IMAGE=rustdesk-server-full-s6:local \
 
 Current status:
 
-- Local full-s6 build and smoke tests pass.
-- No public Docker Hub/GHCR image has been published yet.
-- Until the public image is ready, full-s6 runtime docs are a reserved/local-build option.
+- The `linux/amd64` full-s6 stable image is published on GHCR: `ghcr.io/weiyusc/rustdesk-server-full-s6:v0.1.0`.
+- `latest` is the moving stable tag; `preview` remains a separate preview channel and is not automatically equivalent to stable.
+- This API source checkout still does not include built Web Admin assets; the full-s6 image builds `rustdesk-api-web` and injects Web Admin.
+- Deployment, Compose, upgrade, and release boundaries live in the server repository under `docs/full-s6/`.
 
 ### CLI
 

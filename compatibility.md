@@ -80,7 +80,7 @@ strategy is deliberately changed.
 | WebClient v2 | `/webclient2` / preview client | Gap | Removed from `alonginwind/main`; upstream had DMCA-related removal history | Do not restore without legal and source review |
 | Token auth | API token / token expiry | Source-present | Upstream lineage added token expiry and token verify API | Add tests before extending token semantics |
 | Server config | Partial | Auth-protected `/api/server-config*` behavior was checked earlier; full-process static smoke verified public `/webclient-config/index.js` includes API/WS host settings but does not expose configured `id_server` or `key` | Continue authenticated server-config fixtures before changing server discovery semantics |
-| MUST_LOGIN | Server-side forced-login integration | Partial | API side exposes config expectations and `docs/current-fork-operations.md` documents the API/server boundary; full behavior depends on server fork | Defer implementation until the future rustdesk-server phase |
+| MUST_LOGIN | Server-side forced-login integration | Partial | API side exposes config expectations and `docs/current-fork-operations.md` documents the API/server boundary. The server fork now publishes a `linux/amd64` full-s6 `v0.1.0` image with shared JWT wiring and accepted historical real-client evidence, but the full official-client matrix was not rerun for stable. | Keep API/server boundary docs current; treat full client behavior as server-release evidence, not API-only verification. |
 | Online notifications | Device online/offline notification | Reference-only | Requested in upstream issues; not established in current fork | Treat as future feature after event model is specified |
 | Custom client ID | User-defined RustDesk ID | Reference-only | Requested upstream; not confirmed in current API source | Defer until official client/server constraints are understood |
 
@@ -91,7 +91,7 @@ strategy is deliberately changed.
 | Admin Web UI | Verified when built/injected by full-s6 packaging | API source checkouts still do not track built `resources/admin` assets, but `WeiYusc/rustdesk-api-web` has been contract-audited and installed-mode smoke passed after injecting its `dist` into API resources. The server full-s6 image build now performs that injection and verifies `/_admin/`, admin login/current, and `/api/admin/config/server`. | Keep API-source static-resource boundary separate from integrated-image packaging; do not claim WebClient assets are present. |
 | Mobile admin usability | Partial | `alonginwind/main` includes mobile display adjustments | Add browser/mobile smoke checklist before UI changes |
 | Docker image | Verified for linux/amd64 runtime smoke | `Dockerfile` builds from prebuilt `amd64/release`. A glibc-dynamic amd64 binary built successfully but failed in Alpine with `exec ./apimain: no such file or directory`; rebuilding with `musl-gcc` static CGO produced a working Alpine container, and `/api/version` returned success | Keep release workflow on musl/static CGO for Alpine images; do not use host glibc dynamic binaries |
-| S6/full image | Verified for linux/amd64 startup smoke; superseded for integrated deployment by server full-s6 packaging | `Dockerfile_full_s6` built against `rustdesk/rustdesk-server-s6:latest`; container logs show s6 starting `hbbr`, `hbbs`, and `api`, and `/api/version` returned success. The newer `WeiYusc/rustdesk-server` full-s6 packaging now builds a Debian+s6 local image from server/API/API-web inputs and verifies the installed admin/API/server stack. | Keep `Dockerfile_full_s6` as API-side historical compatibility evidence; use the server repo full-s6 path for the integrated-image MVP. Real RustDesk client/server connectivity remains a separate runtime acceptance task. |
+| S6/full image | Verified for linux/amd64 startup smoke; superseded for integrated deployment by server full-s6 packaging | `Dockerfile_full_s6` built against `rustdesk/rustdesk-server-s6:latest`; container logs show s6 starting `hbbr`, `hbbs`, and `api`, and `/api/version` returned success. The `WeiYusc/rustdesk-server` full-s6 packaging now publishes GHCR `v0.1.0` for `linux/amd64`, verified on the test host with API/Web/Admin, Compose smoke, and upgrade/rollback rehearsal. | Keep `Dockerfile_full_s6` as API-side historical compatibility evidence; use the server repo full-s6 release path for integrated deployments. |
 | OpenWrt package | Out of scope | Upstream users request OpenWrt packaging; reference projects document one-container deployment, but this fork currently targets local linux/amd64 only | Do not plan native/OpenWrt packaging unless scope changes |
 | ARM64 image | Out of scope | CI workflow has linux/arm64 entries, but current project decision is not to support or validate non-amd64 targets | Ignore unless future distribution scope changes |
 | i386 image | Out of scope | Upstream PR #445 proposes i386 support. Local 386 CGO failed due missing 32-bit libc headers, but non-amd64 is not a target for this fork | Do not spend effort on 386 support unless future distribution scope changes |
@@ -220,10 +220,10 @@ Exit gate:
 
 The first server-side integration MVP has moved into `WeiYusc/rustdesk-server`:
 
-- It builds a local Debian+s6 image from the server, API, and API-web inputs.
+- It builds a Debian+s6 image from the server, API, and API-web inputs.
 - It injects built API-web admin assets into the image instead of tracking them in this API repository.
-- Its smoke verifies installed admin/API/server startup behavior, but not real two-client RustDesk forced-login/connect behavior.
-- The image is currently local-only and is not published to Docker Hub/GHCR.
+- GHCR `v0.1.0` is published for `linux/amd64`; the `latest` tag follows stable and `preview` remains separate.
+- Its smoke verifies installed admin/API/server startup behavior, Compose deployment, and upgrade/rollback rehearsal; the stable release did not rerun the full official-client matrix and documents that boundary.
 
 Future server work should continue in the server repository and keep this API repository decoupled from Rust source changes.
 

@@ -6,8 +6,8 @@
 
 - 当前本地验证目标仅为 `linux/amd64`。
 - `i386`、`arm64`、OpenWrt、Windows zip、多架构 manifest/GHCR 推送均不在当前阶段范围内。
-- 真实 RustDesk GUI 客户端连通性、WebClient 资产恢复、多架构镜像发布，以及完整生产发布流程仍属于后续阶段。
-- `rustdesk-server` 侧 full-s6 集成镜像已在 server 仓库作为本地 MVP 验证通过；真实双客户端强制登录/连接流程仍需后续实机或协议 harness 验收。
+- WebClient 资产恢复、多架构镜像发布仍属于后续阶段；当前 stable 只声明 `linux/amd64` full-s6 集成镜像。
+- `rustdesk-server` 侧 full-s6 集成镜像已发布 `v0.1.0` stable（`linux/amd64`），并完成测试机、Compose、升级/回滚演练；完整真实官方客户端矩阵未为 stable 重跑，沿用已接受的历史证据。
 
 ## 已验证的本机运行方式
 
@@ -18,7 +18,7 @@
 - 当前通过的路径是使用 `musl-gcc` 构建静态 CGO amd64 二进制，再放入 Alpine 镜像。
 - `Dockerfile_full_s6` 的本机 amd64 启动 smoke 已通过：s6 启动 `hbbr`、`hbbs`、`api`，并且 `/api/version` 返回成功。
 - `WeiYusc/rustdesk-server` 的 full-s6 集成镜像本机 smoke 已通过：镜像从 server/API/API-web 三个本地输入构建，运行 `hbbr`、`hbbs`、`api`，注入构建后的 Web Admin 到 `/app/resources/admin`，并验证 `/_admin/`、管理员登录和 `/api/admin/config/server`。
-- 该集成镜像目前为本机 tag `rustdesk-server-full-s6:local`，尚未发布到 Docker Hub/GHCR。
+- 该集成镜像已由 server 仓库发布到 GHCR：`ghcr.io/weiyusc/rustdesk-server-full-s6:v0.1.0`；`latest` 跟随稳定版，`preview` 保持独立预览通道。
 
 ### SQLite 首次启动
 
@@ -99,9 +99,9 @@ API 侧配置项包括：
 
 - `/api/server-config` 和 `/api/server-config-v2` 通过路由级 `RustAuth` 中间件保护。
 - 公开的 `/webclient-config/index.js` 只为 WebClient 写入 API/WS host 类设置，不公开 `id_server` 或 `key`。
-- `MUST_LOGIN` 不是本 API 服务单独完成的功能；它依赖 server 侧支持。当前阶段只记录 API 配置和认证边界，不声称已经实现完整强制登录链路。
+- `MUST_LOGIN` 不是本 API 服务单独完成的功能；它依赖 server 侧支持。当前 full-s6 stable 已具备 server/API 共享 JWT 的运行路径，但 Web Admin 开关仍是 hbbs 运行时状态，容器或 hbbs 重启后回到环境变量默认值。
 
-后续若进入 server 阶段，应以官方 `rustdesk/rustdesk-server` 为基底，单独审计并迁移必要的 API/JWT/`MUST_LOGIN`/WebSocket 行为。
+server 侧行为、镜像发布和部署文档以 `WeiYusc/rustdesk-server` 仓库为准；本 API 仓库只记录配置、认证和接口边界。
 
 ## 验证脚本注意事项
 
