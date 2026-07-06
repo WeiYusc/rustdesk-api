@@ -1,3 +1,6 @@
+# Legacy API-local full-s6 build path.
+# Prefer the maintained integrated full-s6 image and build scripts in:
+# https://github.com/WeiYusc/rustdesk-server/tree/master/docker/full-s6
 FROM rustdesk/rustdesk-server-s6:latest AS server
 
 FROM alpine

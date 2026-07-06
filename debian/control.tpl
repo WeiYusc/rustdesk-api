@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: ymwl <ymwlpoolc@qq.com>
 Build-Depends: debhelper (>= 10), pkg-config
 Standards-Version: 4.5.0
-Homepage: https://github.com/lejianwen/rustdesk-api/
+Homepage: https://github.com/WeiYusc/rustdesk-api/
 
 Package: rustdesk-api-server
 Architecture: {{ ARCH }}

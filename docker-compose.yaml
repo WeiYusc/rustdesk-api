@@ -1,6 +1,6 @@
 services:
   rustdesk-api:
-    image: alonginwind/rustdesk-api
+    image: rustdesk-api:local
     container_name: rustdesk-api
     environment:
       - TZ=Asia/Shanghai
