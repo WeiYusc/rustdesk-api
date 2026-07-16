@@ -120,6 +120,9 @@ func TestAdminRustdeskSystemCommandsExposeImplementedPunchRequestsOnly(t *testin
 	if !adminRustdeskCmdsContain(commands, "must-login", "ml") {
 		t.Fatal("SysIdServerCmds missing implemented must-login/ml command")
 	}
+	if !adminRustdeskCmdsContain(commands, "encrypted-only", "eo") {
+		t.Fatal("SysIdServerCmds missing implemented encrypted-only/eo command")
+	}
 	if adminRustdeskCmdsContain(commands, "reload-geo", "rg") {
 		t.Fatal("SysIdServerCmds should not expose unimplemented reload-geo/rg command")
 	}

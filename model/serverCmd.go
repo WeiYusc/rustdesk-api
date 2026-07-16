@@ -27,6 +27,7 @@ var SysIdServerCmds = []*ServerCmd{
 	{Cmd: "ip-changes", Alias: "ic", Option: "[<id>|<number>] [-]", Explain: "ip-changes(ic) [<id>|<number>] [-]", Target: ServerCmdTargetIdServer},
 	{Cmd: "punch-requests", Alias: "pr", Option: "[<number>] [<page_size>] [-]", Explain: "punch-requests(pr) [<number>] [<page_size>] [-]", Target: ServerCmdTargetIdServer},
 	{Cmd: "must-login", Alias: "ml", Option: "[Y|N]", Explain: "must-login(ml) [Y|N]", Target: ServerCmdTargetIdServer},
+	{Cmd: "encrypted-only", Alias: "eo", Option: "[Y|N]", Explain: "require encrypted key exchange", Target: ServerCmdTargetIdServer},
 	{Cmd: "always-use-relay", Alias: "aur", Option: "[y|n]", Explain: "always use relay", Target: ServerCmdTargetIdServer},
 	{Cmd: "test-geo", Alias: "tg", Option: "<ip1> <ip2>", Explain: "test geo", Target: ServerCmdTargetIdServer},
 }
