@@ -36,31 +36,31 @@ func (p *Peer) SysInfo(c *gin.Context) {
 		return
 	}
 	pe := service.AllService.PeerService.FindById(f.Id)
+	loginUserId := service.AllService.UserService.FindActiveUserIdByDeviceUuid(f.Uuid, f.Id)
 	if pe.RowId == 0 {
-		pe = f.ToPeer()
-		pe.UserId = service.AllService.UserService.FindLatestUserIdFromLoginLogByUuid(pe.Uuid, pe.Id)
-		if pe.UserId == 0 { //只同步未登录的被控端
-			err = service.AllService.PeerService.Create(pe)
-			if err != nil {
-				response.Error(c, response.TranslateMsg(c, "OperationFailed")+err.Error())
-				return
-			}
-		} else {
-			c.String(http.StatusOK, "IGNORE")
+		fpe.UserId = loginUserId
+		err = service.AllService.PeerService.Create(fpe)
+		if err != nil {
+			response.Error(c, response.TranslateMsg(c, "OperationFailed")+err.Error())
 			return
 		}
 	} else {
-		pe.UserId = service.AllService.UserService.FindLatestUserIdFromLoginLogByUuid(pe.Uuid, pe.Id)
-		if pe.UserId == 0 { //只同步未登录的被控端
-			fpe.RowId = pe.RowId
-			fpe.UserId = pe.UserId
-			err = service.AllService.PeerService.Update(fpe)
-			if err != nil {
-				response.Error(c, response.TranslateMsg(c, "OperationFailed")+err.Error())
-				return
-			}
+		if pe.Uuid != "" && f.Uuid != pe.Uuid {
+			c.String(http.StatusOK, "ID_NOT_FOUND")
+			return
+		}
+		fpe.RowId = pe.RowId
+		if fpe.Uuid == "" {
+			fpe.Uuid = pe.Uuid
+		}
+		if loginUserId != 0 {
+			fpe.UserId = loginUserId
 		} else {
-			c.String(http.StatusOK, "IGNORE")
+			fpe.UserId = pe.UserId
+		}
+		err = service.AllService.PeerService.Update(fpe)
+		if err != nil {
+			response.Error(c, response.TranslateMsg(c, "OperationFailed")+err.Error())
 			return
 		}
 	}

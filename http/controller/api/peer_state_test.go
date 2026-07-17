@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/lejianwen/rustdesk-api/v2/config"
@@ -231,63 +232,102 @@ func TestSysInfoCreatesUnattendedPeer(t *testing.T) {
 	}
 }
 
-func TestSysInfoIgnoresLoggedInDevice(t *testing.T) {
+func TestSysInfoCreatesLoggedInDevice(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db := setupPeerStateControllerTestDB(t)
 	router := gin.New()
 	router.POST("/api/sysinfo", (&Peer{}).SysInfo)
 
-	if err := db.Create(&model.LoginLog{UserId: 42, DeviceId: "peer-1", Uuid: "uuid-1"}).Error; err != nil {
-		t.Fatalf("create login log: %v", err)
+	if err := db.Create(&model.UserToken{UserId: 42, DeviceId: "peer-1", DeviceUuid: "uuid-1", Token: "token-1", ExpiredAt: time.Now().Add(time.Hour).Unix()}).Error; err != nil {
+		t.Fatalf("create user token: %v", err)
 	}
 
-	recorder := postPeerStateJSON(router, "/api/sysinfo", `{"id":"peer-1","uuid":"uuid-1","hostname":"host-1","os":"Windows","username":"rd"}`)
+	recorder := postPeerStateJSON(router, "/api/sysinfo", `{"id":"peer-1","uuid":"uuid-1","hostname":"host-1","os":"Windows","username":"rd","version":"1.4.0"}`)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%q", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
-	if recorder.Body.String() != "IGNORE" {
-		t.Fatalf("body = %q, want IGNORE", recorder.Body.String())
+	if recorder.Body.String() != "SYSINFO_UPDATED" {
+		t.Fatalf("body = %q, want SYSINFO_UPDATED", recorder.Body.String())
 	}
 
-	var count int64
-	if err := db.Model(&model.Peer{}).Where("id = ?", "peer-1").Count(&count).Error; err != nil {
-		t.Fatalf("count peers: %v", err)
+	var peer model.Peer
+	if err := db.Where("id = ?", "peer-1").First(&peer).Error; err != nil {
+		t.Fatalf("find created peer: %v", err)
 	}
-	if count != 0 {
-		t.Fatalf("peer count = %d, want 0 for logged-in device sysinfo", count)
+	if peer.UserId != 42 {
+		t.Fatalf("UserId = %d, want login user 42", peer.UserId)
+	}
+	if peer.Hostname != "host-1" || peer.Os != "Windows" || peer.Username != "rd" || peer.Version != "1.4.0" {
+		t.Fatalf("peer sysinfo not populated: %#v", peer)
 	}
 }
 
-func TestSysInfoDoesNotOverwriteExistingLoggedInPeer(t *testing.T) {
+func TestSysInfoUpdatesExistingLoggedInPeerWithoutOverwritingManagedFields(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db := setupPeerStateControllerTestDB(t)
 	router := gin.New()
 	router.POST("/api/sysinfo", (&Peer{}).SysInfo)
 
-	if err := db.Create(&model.Peer{Id: "peer-1", Uuid: "uuid-1", Hostname: "existing-host", UserId: 42}).Error; err != nil {
+	if err := db.Create(&model.Peer{Id: "peer-1", Uuid: "uuid-1", Hostname: "existing-host", UserId: 7, Alias: "managed-alias", GroupId: 9}).Error; err != nil {
 		t.Fatalf("create peer: %v", err)
 	}
-	if err := db.Create(&model.LoginLog{UserId: 42, DeviceId: "peer-1", Uuid: "uuid-1"}).Error; err != nil {
-		t.Fatalf("create login log: %v", err)
+	if err := db.Create(&model.UserToken{UserId: 42, DeviceId: "peer-1", DeviceUuid: "uuid-1", Token: "token-1", ExpiredAt: time.Now().Add(time.Hour).Unix()}).Error; err != nil {
+		t.Fatalf("create user token: %v", err)
 	}
 
-	recorder := postPeerStateJSON(router, "/api/sysinfo", `{"id":"peer-1","uuid":"uuid-1","hostname":"new-host","os":"Windows","username":"rd"}`)
+	recorder := postPeerStateJSON(router, "/api/sysinfo", `{"id":"peer-1","uuid":"uuid-1","hostname":"new-host","os":"Windows","username":"rd","version":"1.4.0"}`)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%q", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
-	if recorder.Body.String() != "IGNORE" {
-		t.Fatalf("body = %q, want IGNORE", recorder.Body.String())
+	if recorder.Body.String() != "SYSINFO_UPDATED" {
+		t.Fatalf("body = %q, want SYSINFO_UPDATED", recorder.Body.String())
 	}
 
 	var peer model.Peer
 	if err := db.Where("id = ?", "peer-1").First(&peer).Error; err != nil {
 		t.Fatalf("find peer: %v", err)
 	}
-	if peer.Hostname != "existing-host" {
-		t.Fatalf("Hostname = %q, want existing-host", peer.Hostname)
+	if peer.Hostname != "new-host" {
+		t.Fatalf("Hostname = %q, want new-host", peer.Hostname)
 	}
 	if peer.UserId != 42 {
-		t.Fatalf("UserId = %d, want 42", peer.UserId)
+		t.Fatalf("UserId = %d, want latest login user 42", peer.UserId)
+	}
+	if peer.Alias != "managed-alias" {
+		t.Fatalf("Alias = %q, want managed-alias", peer.Alias)
+	}
+	if peer.GroupId != 9 {
+		t.Fatalf("GroupId = %d, want 9", peer.GroupId)
+	}
+}
+
+func TestSysInfoDoesNotOverwritePeerWhenUuidMismatches(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupPeerStateControllerTestDB(t)
+	router := gin.New()
+	router.POST("/api/sysinfo", (&Peer{}).SysInfo)
+
+	if err := db.Create(&model.Peer{Id: "peer-1", Uuid: "old-uuid", Hostname: "old-host", UserId: 7}).Error; err != nil {
+		t.Fatalf("create peer: %v", err)
+	}
+	if err := db.Create(&model.LoginLog{UserId: 42, DeviceId: "peer-1", Uuid: "new-uuid"}).Error; err != nil {
+		t.Fatalf("create login log: %v", err)
+	}
+
+	recorder := postPeerStateJSON(router, "/api/sysinfo", `{"id":"peer-1","uuid":"new-uuid","hostname":"new-host","os":"Windows","username":"rd"}`)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%q", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+	if recorder.Body.String() != "ID_NOT_FOUND" {
+		t.Fatalf("body = %q, want ID_NOT_FOUND", recorder.Body.String())
+	}
+
+	var peer model.Peer
+	if err := db.Where("id = ?", "peer-1").First(&peer).Error; err != nil {
+		t.Fatalf("find peer: %v", err)
+	}
+	if peer.Uuid != "old-uuid" || peer.Hostname != "old-host" || peer.UserId != 7 {
+		t.Fatalf("peer was overwritten on uuid mismatch: %#v", peer)
 	}
 }
 
@@ -377,7 +417,145 @@ func TestSysInfoCreatedPeerHeartbeatUpdatesOnlineState(t *testing.T) {
 	}
 }
 
-func TestHeartbeatDeletesLoggedInUnboundPeer(t *testing.T) {
+func TestSysInfoDoesNotOverwriteExistingPeerWhenIncomingUuidEmpty(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupPeerStateControllerTestDB(t)
+	router := gin.New()
+	router.POST("/api/sysinfo", (&Peer{}).SysInfo)
+
+	if err := db.Create(&model.Peer{Id: "peer-1", Uuid: "uuid-1", Hostname: "old-host", UserId: 7}).Error; err != nil {
+		t.Fatalf("create peer: %v", err)
+	}
+
+	recorder := postPeerStateJSON(router, "/api/sysinfo", `{"id":"peer-1","hostname":"new-host","os":"Windows","username":"rd"}`)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%q", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+	if recorder.Body.String() != "ID_NOT_FOUND" {
+		t.Fatalf("body = %q, want ID_NOT_FOUND", recorder.Body.String())
+	}
+
+	var peer model.Peer
+	if err := db.Where("id = ?", "peer-1").First(&peer).Error; err != nil {
+		t.Fatalf("find peer: %v", err)
+	}
+	if peer.Uuid != "uuid-1" || peer.Hostname != "old-host" || peer.UserId != 7 {
+		t.Fatalf("peer was overwritten by empty-uuid sysinfo: %#v", peer)
+	}
+}
+
+func TestHeartbeatPreservesExistingUserWhenNoActiveToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupPeerStateControllerTestDB(t)
+	router := gin.New()
+	router.POST("/api/heartbeat", (&Index{}).Heartbeat)
+
+	if err := db.Create(&model.Peer{Id: "peer-1", Uuid: "uuid-1", UserId: 7}).Error; err != nil {
+		t.Fatalf("create peer: %v", err)
+	}
+	if err := db.Create(&model.LoginLog{UserId: 7, DeviceId: "peer-1", Uuid: "uuid-1"}).Error; err != nil {
+		t.Fatalf("create historical login log: %v", err)
+	}
+
+	recorder := postPeerStateJSON(router, "/api/heartbeat", `{"id":"peer-1","uuid":"uuid-1","ver":1}`)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%q", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+
+	var peer model.Peer
+	if err := db.Where("id = ?", "peer-1").First(&peer).Error; err != nil {
+		t.Fatalf("find peer: %v", err)
+	}
+	if peer.UserId != 7 {
+		t.Fatalf("UserId = %d, want preserved user 7", peer.UserId)
+	}
+	if peer.LastOnlineTime == 0 {
+		t.Fatalf("LastOnlineTime = 0, want heartbeat update")
+	}
+}
+
+func TestHeartbeatIgnoresUuidMismatch(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupPeerStateControllerTestDB(t)
+	router := gin.New()
+	router.POST("/api/heartbeat", (&Index{}).Heartbeat)
+
+	if err := db.Create(&model.Peer{Id: "peer-1", Uuid: "uuid-1", UserId: 7}).Error; err != nil {
+		t.Fatalf("create peer: %v", err)
+	}
+	if err := db.Create(&model.UserToken{UserId: 42, DeviceId: "peer-1", DeviceUuid: "uuid-1", Token: "token-1", ExpiredAt: time.Now().Add(time.Hour).Unix()}).Error; err != nil {
+		t.Fatalf("create user token: %v", err)
+	}
+
+	recorder := postPeerStateJSON(router, "/api/heartbeat", `{"id":"peer-1","uuid":"wrong-uuid","ver":1}`)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%q", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+
+	var peer model.Peer
+	if err := db.Where("id = ?", "peer-1").First(&peer).Error; err != nil {
+		t.Fatalf("find peer: %v", err)
+	}
+	if peer.UserId != 7 {
+		t.Fatalf("UserId = %d, want unchanged user 7", peer.UserId)
+	}
+	if peer.LastOnlineTime != 0 {
+		t.Fatalf("LastOnlineTime = %d, want unchanged 0", peer.LastOnlineTime)
+	}
+}
+
+func TestSysInfoDoesNotRebindLoggedOutDeviceFromHistoricalLoginLog(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupPeerStateControllerTestDB(t)
+	router := gin.New()
+	router.POST("/api/sysinfo", (&Peer{}).SysInfo)
+
+	if err := db.Create(&model.LoginLog{UserId: 42, DeviceId: "peer-1", Uuid: "uuid-1"}).Error; err != nil {
+		t.Fatalf("create historical login log: %v", err)
+	}
+
+	recorder := postPeerStateJSON(router, "/api/sysinfo", `{"id":"peer-1","uuid":"uuid-1","hostname":"host-1","os":"Windows","username":"rd"}`)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%q", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+
+	var peer model.Peer
+	if err := db.Where("id = ?", "peer-1").First(&peer).Error; err != nil {
+		t.Fatalf("find peer: %v", err)
+	}
+	if peer.UserId != 0 {
+		t.Fatalf("UserId = %d, want 0 without active token", peer.UserId)
+	}
+}
+
+func TestHeartbeatDoesNotRebindLoggedOutDeviceFromHistoricalLoginLog(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupPeerStateControllerTestDB(t)
+	router := gin.New()
+	router.POST("/api/heartbeat", (&Index{}).Heartbeat)
+
+	if err := db.Create(&model.Peer{Id: "peer-1", Uuid: "uuid-1", UserId: 0}).Error; err != nil {
+		t.Fatalf("create peer: %v", err)
+	}
+	if err := db.Create(&model.LoginLog{UserId: 42, DeviceId: "peer-1", Uuid: "uuid-1"}).Error; err != nil {
+		t.Fatalf("create historical login log: %v", err)
+	}
+
+	recorder := postPeerStateJSON(router, "/api/heartbeat", `{"id":"peer-1","uuid":"uuid-1","ver":1}`)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%q", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+
+	var peer model.Peer
+	if err := db.Where("id = ?", "peer-1").First(&peer).Error; err != nil {
+		t.Fatalf("find peer: %v", err)
+	}
+	if peer.UserId != 0 {
+		t.Fatalf("UserId = %d, want 0 without active token", peer.UserId)
+	}
+}
+
+func TestHeartbeatKeepsLoggedInUnboundPeerAndUpdatesOnlineState(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db := setupPeerStateControllerTestDB(t)
 	router := gin.New()
@@ -386,8 +564,8 @@ func TestHeartbeatDeletesLoggedInUnboundPeer(t *testing.T) {
 	if err := db.Create(&model.Peer{Id: "peer-1", Uuid: "uuid-1"}).Error; err != nil {
 		t.Fatalf("create peer: %v", err)
 	}
-	if err := db.Create(&model.LoginLog{UserId: 42, DeviceId: "peer-1", Uuid: "uuid-1"}).Error; err != nil {
-		t.Fatalf("create login log: %v", err)
+	if err := db.Create(&model.UserToken{UserId: 42, DeviceId: "peer-1", DeviceUuid: "uuid-1", Token: "token-1", ExpiredAt: time.Now().Add(time.Hour).Unix()}).Error; err != nil {
+		t.Fatalf("create user token: %v", err)
 	}
 
 	recorder := postPeerStateJSON(router, "/api/heartbeat", `{"id":"peer-1","uuid":"uuid-1","ver":1}`)
@@ -395,12 +573,18 @@ func TestHeartbeatDeletesLoggedInUnboundPeer(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body=%q", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
 
-	var count int64
-	if err := db.Model(&model.Peer{}).Where("id = ?", "peer-1").Count(&count).Error; err != nil {
-		t.Fatalf("count peers: %v", err)
+	var peer model.Peer
+	if err := db.Where("id = ?", "peer-1").First(&peer).Error; err != nil {
+		t.Fatalf("find peer: %v", err)
 	}
-	if count != 0 {
-		t.Fatalf("peer count = %d, want 0 after logged-in unbound heartbeat", count)
+	if peer.UserId != 42 {
+		t.Fatalf("UserId = %d, want 42", peer.UserId)
+	}
+	if peer.LastOnlineTime == 0 {
+		t.Fatalf("LastOnlineTime = 0, want heartbeat update")
+	}
+	if peer.LastOnlineIp == "" {
+		t.Fatalf("LastOnlineIp is empty, want heartbeat client IP")
 	}
 }
 
@@ -413,8 +597,8 @@ func TestHeartbeatKeepsLoggedInPeerWithAlias(t *testing.T) {
 	if err := db.Create(&model.Peer{Id: "peer-1", Uuid: "uuid-1", Alias: "kept"}).Error; err != nil {
 		t.Fatalf("create peer: %v", err)
 	}
-	if err := db.Create(&model.LoginLog{UserId: 42, DeviceId: "peer-1", Uuid: "uuid-1"}).Error; err != nil {
-		t.Fatalf("create login log: %v", err)
+	if err := db.Create(&model.UserToken{UserId: 42, DeviceId: "peer-1", DeviceUuid: "uuid-1", Token: "token-1", ExpiredAt: time.Now().Add(time.Hour).Unix()}).Error; err != nil {
+		t.Fatalf("create user token: %v", err)
 	}
 
 	recorder := postPeerStateJSON(router, "/api/heartbeat", `{"id":"peer-1","uuid":"uuid-1","ver":1}`)

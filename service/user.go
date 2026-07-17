@@ -437,6 +437,19 @@ func (us *UserService) UserThirdInfo(userId uint, op string) *model.UserThird {
 	return ut
 }
 
+// FindActiveUserIdByDeviceUuid resolves the current logged-in user for a device.
+// It intentionally uses active user tokens instead of historical login logs so a
+// logout/unbind cannot be undone by later unauthenticated sysinfo or heartbeat
+// reports with the same id+uuid.
+func (us *UserService) FindActiveUserIdByDeviceUuid(uuid string, deviceId string) uint {
+	if uuid == "" || deviceId == "" {
+		return 0
+	}
+	ut := &model.UserToken{}
+	DB.Where("device_uuid = ? and device_id = ? and expired_at >= ?", uuid, deviceId, time.Now().Unix()).Order("id desc").First(ut)
+	return ut.UserId
+}
+
 // FindLatestUserIdFromLoginLogByUuid 根据uuid和设备id查找最后登录的用户id
 func (us *UserService) FindLatestUserIdFromLoginLogByUuid(uuid string, deviceId string) uint {
 	llog := &model.LoginLog{}
