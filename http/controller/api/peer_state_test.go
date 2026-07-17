@@ -356,7 +356,7 @@ func TestHeartbeatReturnsEmptyObjectForInvalidPayloads(t *testing.T) {
 	}
 }
 
-func TestHeartbeatReturnsEmptyObjectForUnknownPeerWithoutCreatingPeer(t *testing.T) {
+func TestHeartbeatRequestsSysInfoForUnknownPeerWithoutCreatingPeer(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db := setupPeerStateControllerTestDB(t)
 	router := gin.New()
@@ -366,8 +366,8 @@ func TestHeartbeatReturnsEmptyObjectForUnknownPeerWithoutCreatingPeer(t *testing
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%q", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
-	if strings.TrimSpace(recorder.Body.String()) != "{}" {
-		t.Fatalf("body = %q, want empty JSON object", recorder.Body.String())
+	if strings.TrimSpace(recorder.Body.String()) != `{"sysinfo":true}` {
+		t.Fatalf("body = %q, want sysinfo request", recorder.Body.String())
 	}
 
 	var count int64

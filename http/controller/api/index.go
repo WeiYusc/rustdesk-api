@@ -51,7 +51,7 @@ func (i *Index) Heartbeat(c *gin.Context) {
 	}
 	peer := service.AllService.PeerService.FindById(info.Id)
 	if peer == nil || peer.RowId == 0 {
-		c.JSON(http.StatusOK, gin.H{})
+		c.JSON(http.StatusOK, gin.H{"sysinfo": true})
 		return
 	}
 	resolvedUserId := service.AllService.UserService.FindActiveUserIdByDeviceUuid(peer.Uuid, peer.Id)
