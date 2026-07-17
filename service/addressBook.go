@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 	"strings"
 	"sync"
+	"time"
 )
 
 var (
@@ -143,7 +144,57 @@ func (s *AddressBookService) List(page, pageSize uint, where func(tx *gorm.DB)) 
 		Order("collection_id ASC").
 		Order("alias ASC")
 	tx.Find(&res.AddressBooks)
+	s.ApplyPeerOnlineState(res.AddressBooks, 60)
 	return
+}
+
+// ApplyPeerOnlineState derives live online state for address-book rows from the
+// canonical peer heartbeat table. address_books.online is only a stored
+// snapshot and can be stale after importing devices or after heartbeat changes.
+func (s *AddressBookService) ApplyPeerOnlineState(abs []*model.AddressBook, ttlSeconds int64) {
+	if len(abs) == 0 {
+		return
+	}
+	if ttlSeconds <= 0 {
+		ttlSeconds = 60
+	}
+	ids := make([]string, 0, len(abs))
+	seen := map[string]struct{}{}
+	for _, ab := range abs {
+		if ab == nil || ab.Id == "" {
+			continue
+		}
+		if _, ok := seen[ab.Id]; ok {
+			continue
+		}
+		seen[ab.Id] = struct{}{}
+		ids = append(ids, ab.Id)
+	}
+	if len(ids) == 0 {
+		return
+	}
+
+	cutoff := time.Now().Unix() - ttlSeconds
+	var peers []*model.Peer
+	DB.Select("id", "last_online_time").Where("id IN ?", ids).Find(&peers)
+	online := make(map[string]bool, len(peers))
+	known := make(map[string]struct{}, len(peers))
+	for _, peer := range peers {
+		known[peer.Id] = struct{}{}
+		online[peer.Id] = peer.LastOnlineTime >= cutoff
+	}
+	for _, ab := range abs {
+		if ab == nil {
+			continue
+		}
+		if _, ok := known[ab.Id]; ok {
+			ab.SameServer = true
+			ab.Online = online[ab.Id]
+			continue
+		}
+		ab.SameServer = false
+		ab.Online = false
+	}
 }
 
 func (s *AddressBookService) FromPeer(peer *model.Peer) (a *model.AddressBook) {
