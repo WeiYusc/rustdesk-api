@@ -37,6 +37,13 @@ func (as *AuditService) UpdateAuditConn(u *model.AuditConn) error {
 	return DB.Model(u).Updates(u).Error
 }
 
+// FindAuditConnByPeerIdAndConnId preserves database errors for audit acknowledgements.
+func (as *AuditService) FindAuditConnByPeerIdAndConnId(peerId string, connId int64) (*model.AuditConn, error) {
+	res := &model.AuditConn{}
+	err := DB.Where("peer_id = ? and conn_id = ?", peerId, connId).First(res).Error
+	return res, err
+}
+
 // InfoByPeerIdAndConnId
 func (as *AuditService) InfoByPeerIdAndConnId(peerId string, connId int64) (res *model.AuditConn) {
 	res = &model.AuditConn{}

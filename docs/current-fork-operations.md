@@ -103,6 +103,15 @@ API 侧配置项包括：
 
 server 侧行为、镜像发布和部署文档以 `WeiYusc/rustdesk-server` 仓库为准；本 API 仓库只记录配置、认证和接口边界。
 
+## RustDesk 1.5 审计最小兼容边界
+
+- `/api/audit/conn` 与 `/api/audit/file` 在数据库操作成功后返回 HTTP 200、零字节 body；不再返回通用 success JSON。全站 `response.Success` 未改。
+- 数据库 create/query/update 失败返回 HTTP 503、固定 `{"error":"audit temporarily unavailable"}`，不向客户端返回 SQL、路径或底层错误。
+- conn 的 `new`、空 action 更新、`close` 保持原字段语义；无匹配更新/关闭（含 `conn_id=0`）以及未知 action 仍为 200 空 body no-op。坏 JSON、缺 id、new 的 conn_id=0 仍为 400。
+- 旧请求不要求 nonce/UUID；1.5 可带 nonce 或未知字段，但不保存新增字段、不改 schema、不去重，也不保证 exactly-once。body 中 peer/IP 的来源和更新边界不变。
+- 匿名报告兼容与 reporting rate limit 的 429 保持不变。现有 BodyLimit 的独立测试验证 413；实际审计绑定路径收到 MaxBytesError 时原有响应是 400，本改动保留该事实，不声称生产审计路由原来返回 413。
+- 本地协议证据：`go test -mod=readonly -p=2 -count=1 ./http/controller/api ./http/router ./service`，生产 `ApiInit` + 内存 SQLite + GORM 故障注入和恢复。不是已部署/full-s6/真实官方客户端端到端验收。
+
 ## 验证脚本注意事项
 
 本仓库当前存在一个 Go module 状态细节：`GOFLAGS=-mod=mod` 可能把 `go.mod` 中非版本化的 `master` / `main` 引用临时改写成版本号。已有 smoke 脚本会在临时构建后恢复 `go.mod` 和可选 `go.sum`，并检查它们没有保留漂移。

@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -191,15 +190,7 @@ func TestAuditFileRejectsMissingRequiredIdentityWithoutCreatingRow(t *testing.T)
 
 func assertAuditSuccessResponse(t *testing.T, body []byte) {
 	t.Helper()
-	var payload struct {
-		Code    int    `json:"code"`
-		Message string `json:"message"`
-		Data    string `json:"data"`
-	}
-	if err := json.Unmarshal(body, &payload); err != nil {
-		t.Fatalf("unmarshal success response: %v; body=%q", err, string(body))
-	}
-	if payload.Code != 0 || payload.Message != "success" || payload.Data != "" {
-		t.Fatalf("success response = %#v", payload)
+	if len(body) != 0 {
+		t.Fatalf("audit success body = %q, want zero bytes", body)
 	}
 }
