@@ -1,5 +1,7 @@
 # Current Fork Operations Boundary
 
+> 2026-10-05 发布前：1.5 审计维护源码已在 GitHub，旧 GHCR latest 尚未包含本次修复；[维护发布目标与边界](https://github.com/WeiYusc/rustdesk-server/blob/master/docs/full-s6/release-notes-maintenance-20261005.zh-CN.md)尚未发布，发布后凭证另行归档。
+
 本文记录当前 fork 在本阶段已经验证的运行边界。它不是完整部署手册；未验证的目标不会在这里标为支持。
 
 ## 当前目标范围

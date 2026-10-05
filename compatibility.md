@@ -23,6 +23,8 @@ manual runtime path that proved it.
 
 ## Repository and License Boundary
 
+The Future/Deferred server-reference rows below record the historical Stage 0 boundary. Current integrated packaging is in the separate server repository (see Stage 4); Rust server code remains out of this API repository.
+
 | Source | Role in this fork | License boundary |
 | --- | --- | --- |
 | `alonginwind/rustdesk-api` `main` | Code base for this fork | Current implementation source |
@@ -144,10 +146,9 @@ this fork without copying AGPL code.
 | Version capability matrix | Prevents overclaiming client compatibility | Build into this document and tests first |
 | OpenWrt/one-container docs | Important operator experience | Write original docs based on tested artifacts |
 
-## Future `rustdesk-server` Integration Boundary
+## Historical Stage 0 `rustdesk-server` Integration Boundary
 
-Server integration is intentionally deferred. Current API-server work should only
-prepare clean boundaries:
+At Stage 0, server integration was deferred. It is now packaged separately as described in Stage 4; the API-source separation below still applies:
 
 - Keep ID server, relay server, API server, public key, and forced-login settings
   explicit in configuration and server-config responses.

@@ -1,5 +1,7 @@
 # Endpoint Compatibility Audit
 
+Current RustDesk 1.5 audit protocol evidence: [operations boundary](current-fork-operations.md) and [real-router protocol fixtures](../http/router/audit_150_protocol_test.go). Successful reports return HTTP 200 with zero-byte body; database failures return fixed redacted 503. Legacy no-ops, anonymous reports, optional nonce and unknown fields are covered locally; nonce is not stored or deduplicated. This is not a real-client E2E or exactly-once claim. Earlier fixture descriptions below remain historical evidence for their original scope.
+
 本文件是 Stage 3 的入口审计，不实现新接口。目标是在新增任何占位 endpoint 前，先把当前 fork 已有路由、参考项目暴露的能力名称、以及需要真实客户端/协议证据的候选项分清楚。
 
 ## 审计边界

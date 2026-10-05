@@ -1,5 +1,10 @@
 # RustDesk API / RustDesk API 服务
 
+> 2026-10-05 发布前状态：维护源码已提交到 GitHub，但 GHCR `latest` 尚未包含本次修复。固定发布目标为 `maintenance-20261005-76ffa535`（尚未发布），通过构建/smoke及独立审查后按维护者授权更新 `latest`，不覆盖 `v0.1.0`。见 [维护发布说明](https://github.com/WeiYusc/rustdesk-server/blob/master/docs/full-s6/release-notes-maintenance-20261005.zh-CN.md)。
+
+> Pre-publication status (2026-10-05): maintenance source is committed on GitHub, but GHCR `latest` does not yet contain these fixes. The intended pinned release is `maintenance-20261005-76ffa535` (not yet published); after build/smoke and independent review, update `latest` under maintainer authorization without replacing `v0.1.0`. See [maintenance release notes](https://github.com/WeiYusc/rustdesk-server/blob/master/docs/full-s6/release-notes-maintenance-20261005.en.md).
+
+
 [中文](#中文) · [English](#english)
 
 ## 中文
